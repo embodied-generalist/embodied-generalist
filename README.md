@@ -153,7 +153,8 @@ python -c 'from model.pointnetpp.pointnetpp import PointNetPP'
     ├── scan2cap
     │   ├── scannet_scanrefer.jsonl
     │   ├── scannetv2_train.txt
-    │   └── scannetv2_val.txt
+    │   ├── scannetv2_val.txt
+    │   └── scanrefer_corpus.pth
     ├── scanqa
     │   ├── ScanQA_v1.0_train.json
     │   └── ScanQA_v1.0_val.json
