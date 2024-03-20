@@ -40,17 +40,17 @@ We introduce **LEO**, an **embodied multi-modal generalist agent** capable of **
 
 We meticulously collect extensive diverse data for training **LEO**. <sup>&dagger;</sup> indicates the task contains our generated data. See [Task and Data](#task-and-data) for details. We show the data statistics as below:
 
-| Dataset | Task | 2D required? | 3D assets | #data | #token <br> (res.) | #token <br> (prefix + res.) |
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| *LEO-align* | object captioning | ✗ | Objaverse | 660k | 10M | 27M |
-|  | object referring<sup>&dagger;</sup> | ✗ | ScanNet + 3RScan | 354k | 15M | 39M |
-|  | scene captioning<sup>&dagger;</sup> | ✗ | 3RScan | 20k | 3.3M | 4.4M |
-| *LEO-instruct* | 3D captioning | ✗ | ScanNet | 37k | 821k | 3M |
-|  | 3D QA<sup>&dagger;</sup> | ✗ | ScanNet + 3RScan | 83k | 177k | 4M |
-|  | 3D dialogue<sup>&dagger;</sup> | ✗ | 3RScan | 11k | 1.1M | 8.3M |
-|  | task planning<sup>&dagger;</sup> | ✗ | 3RScan | 14k | 1.9M | 2.7M |
-|  | navigation | ✓ | MP3D | 60k | 11.4M | 272M |
-|  | manipulation | ✓ | CLIPort | 300k | 7.2M | 734M |
+| Dataset | Task | 2D required? | 3D assets | #data |
+| :---: | :---: | :---: | :---: | :---: |
+| *LEO-align* | object captioning | ✗ | Objaverse | 660k |
+|  | object referring<sup>&dagger;</sup> | ✗ | ScanNet + 3RScan | 354k |
+|  | scene captioning<sup>&dagger;</sup> | ✗ | 3RScan | 20k |
+| *LEO-instruct* | 3D captioning | ✗ | ScanNet | 37k |
+|  | 3D QA<sup>&dagger;</sup> | ✗ | ScanNet + 3RScan | 83k |
+|  | 3D dialogue<sup>&dagger;</sup> | ✗ | 3RScan | 11k |
+|  | task planning<sup>&dagger;</sup> | ✗ | 3RScan | 14k |
+|  | navigation | ✓ | MP3D | 60k |
+|  | manipulation | ✓ | CLIPort | 300k |
 
 
 ## News
@@ -104,7 +104,7 @@ python -c 'from model.pointnetpp.pointnetpp import PointNetPP'
 4. Go through [task and data](#task-and-data), [model weights](#model-weights), and you are ready to [run](#running).
 
 ## Task and Data
-**Data preparation.** The data includes two components: scan data and language annotations. Download from [Google Drive](https://drive.google.com/drive/folders/1dko2dzdwRWSK3hi1liBpGHZ8Dz97jXdP?usp=sharing).
+**Data preparation.** The [data](https://drive.google.com/drive/folders/1dko2dzdwRWSK3hi1liBpGHZ8Dz97jXdP?usp=sharing) includes two components: scan data and language annotations.
 - **Scan data.** To simplify the preparation and save storage, we streamline the scan data (point clouds and instance segments), which is less than 10G yet already sufficient for experiments on **LEO**. You can download the compressed files from the links below and arrange the data according to the illustration of scan data structure.
   - **ScanNet**: [pcd_with_global_alignment](https://drive.google.com/file/d/1N9LQfDlC0UxJCPefdYeP54TT-TfwOrLh/view?usp=sharing), [mask (Mask3D proposals)](https://drive.google.com/file/d/1AACMAjlFFGZsKJYAh8hFikFGKtYC6epk/view?usp=sharing).
   - **3RScan**: [3RScan-ours-align](https://drive.google.com/file/d/11xltRZ2BVzJWN4uqOAQgbLspWjacQyAJ/view?usp=sharing).
