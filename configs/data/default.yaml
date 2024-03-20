@@ -1,0 +1,66 @@
+scan_family_base: TBD
+rscan_base: TBD
+
+alignment_base: TBD
+instruction_base: TBD
+
+max_obj_len: ${dataset_wrapper_args.max_obj_len}
+num_points: 1024
+
+cap3d:
+  cap3d_root: ${data.alignment_base}/obj_caption
+  num_points: ${data.num_points}
+
+obj_scene_cap:
+  rscan_base: ${data.rscan_base}
+  scannet_base: ${data.scan_family_base}
+  anno_dir: ${data.alignment_base}/obj_scene_caption
+  max_obj_len: ${data.max_obj_len}
+  num_points: ${data.num_points}
+
+scene_cap:
+  rscan_base: ${data.rscan_base}
+  anno_dir: ${data.alignment_base}/scene_caption
+  max_obj_len: ${data.max_obj_len}
+  num_points: ${data.num_points}
+
+scan2cap:
+  scannet_base: ${data.scan_family_base}
+  anno_dir: ${data.instruction_base}/scan2cap
+  max_obj_len: ${data.max_obj_len}
+  num_points: ${data.num_points}
+  pc_type: gt   # overrided from CLI
+  iou_thres: 0.5
+  corpus: ${data.instruction_base}/scan2cap/scanrefer_corpus.pth
+
+scanqa:
+  scannet_base: ${data.scan_family_base}
+  anno_dir: ${data.instruction_base}/scanqa
+  max_obj_len: ${data.max_obj_len}
+  num_points: ${data.num_points}
+  pc_type: gt   # overrided from CLI
+
+sqa3d:
+  scannet_base: ${data.scan_family_base}
+  anno_dir: ${data.instruction_base}/sqa3d
+  max_obj_len: ${data.max_obj_len}
+  num_points: ${data.num_points}
+  pc_type: gt   # overrided from CLI
+
+rscan_qa:
+  rscan_base: ${data.rscan_base}
+  anno_dir: ${data.instruction_base}/3rscanqa
+  max_obj_len: ${data.max_obj_len}
+  num_points: ${data.num_points}
+
+rscan_plan:
+  rscan_base: ${data.rscan_base}
+  anno_dir: ${data.instruction_base}/planning
+  max_obj_len: ${data.max_obj_len}
+  num_points: ${data.num_points}
+
+rscan_dialog:
+  rscan_base: ${data.rscan_base}
+  anno_dir: ${data.instruction_base}/dialogue
+  max_obj_len: ${data.max_obj_len}
+  num_points: ${data.num_points}

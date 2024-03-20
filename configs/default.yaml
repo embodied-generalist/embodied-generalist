@@ -1,0 +1,59 @@
+defaults:
+  - data: default
+  - task: tuning_noact
+  - llm: vicuna7b
+  - vision2d: convnext
+  - vision3d: ose3d_pointnetpp
+  - _self_
+
+# exp general info
+name: LEO-1   # project name of wandb
+note: default   # run name of wandb
+
+rng_seed: 42
+num_gpu: 4   # will be overrided by launch.py
+mode: train
+naming_keywords: [note]   # choose keywords to feature the exp run dir
+base_dir: TBD
+exp_dir: ""   # temporarily empty, will be set by run.py as base_dir + name + *naming_keywords
+pretrained_ckpt_path: ""   # specified on launch
+
+logger:
+  name: wandb
+  entity: TBD
+
+dataset_wrapper_args:
+  max_obj_len: 60
+
+dataloader:
+  train:
+    batchsize: 4   # per-gpu batchsize
+    num_workers: 4
+  eval:
+    batchsize: 4   # per-gpu batchsize
+    num_workers: 4
+
+trainer: LeoTrainer
+training:
+  epochs: ${task.training.epochs}
+  gradient_accumulation_steps: 5
+  grad_norm: 5.0
+  optim:
+    name: AdamW
+    args:
+      lr: ${task.training.lr}
+      betas: [0.9, 0.999]
+      weight_decay: 0.05
+  schedule:
+    name: linear_warmup_cosine_decay
+    args:
+      warmup_steps: 400
+
+eval:
+  num_batch_val: 50
+  val_interval: 1
+
+# model misc
+clip_txt_guidance:
+  flag: False   # for eai
+  clip_out_dim: 1024

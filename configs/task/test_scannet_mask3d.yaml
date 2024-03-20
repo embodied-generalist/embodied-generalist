@@ -1,0 +1,40 @@
+# Evaluation with Mask3D proposals should be launched together with pc_type overrided in CLI
+# train
+training:
+  lr: 3e-5
+  epochs: 10
+
+leomix:
+  mode: [train]
+  dataset: LeoMix
+  mix: [scan2cap]   # dummy
+  ratio: 1.0
+  dataset_wrapper: LeoObjPadDatasetWrapper
+  dataset_wrapper_args: ${dataset_wrapper_args}
+  train_dataloader_args: ${dataloader.train}
+  eval_dataloader_args: ${dataloader.eval}
+
+# eval
+scan2cap:
+  mode: [test]
+  dataset: LeoScan2Cap
+  dataset_wrapper: LeoObjPadDatasetWrapper
+  dataset_wrapper_args: ${dataset_wrapper_args}
+  eval_dataloader_args: ${dataloader.eval}
+  evaluator: CaptionEvaluator
+
+scanqa:
+  mode: [test]
+  dataset: LeoScanQA
+  dataset_wrapper: LeoObjPadDatasetWrapper
+  dataset_wrapper_args: ${dataset_wrapper_args}
+  eval_dataloader_args: ${dataloader.eval}
+  evaluator: ScanQAEvaluator
+
+sqa3d:
+  mode: [test]
+  dataset: LeoSQA3D
+  dataset_wrapper: LeoObjPadDatasetWrapper
+  dataset_wrapper_args: ${dataset_wrapper_args}
+  eval_dataloader_args: ${dataloader.eval}
+  evaluator: SQA3DEvaluator

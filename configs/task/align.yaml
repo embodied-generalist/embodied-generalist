@@ -1,0 +1,39 @@
+# train
+training:
+  lr: 3e-4
+  epochs: 5
+
+leomix:
+  mode: [train]
+  dataset: LeoMix
+  mix: [cap3d, obj_scene_cap, scene_cap]
+  ratio: 1.0
+  dataset_wrapper: LeoObjPadDatasetWrapper
+  dataset_wrapper_args: ${dataset_wrapper_args}
+  train_dataloader_args: ${dataloader.train}
+  eval_dataloader_args: ${dataloader.eval}
+
+# eval
+cap3d:
+  mode: [val, test]
+  dataset: LeoCap3D
+  dataset_wrapper: LeoObjPadDatasetWrapper
+  dataset_wrapper_args: ${dataset_wrapper_args}
+  eval_dataloader_args: ${dataloader.eval}
+  evaluator: CaptionEvaluator
+
+scene_cap:
+  mode: [val, test]
+  dataset: LeoSceneCap
+  dataset_wrapper: LeoObjPadDatasetWrapper
+  dataset_wrapper_args: ${dataset_wrapper_args}
+  eval_dataloader_args: ${dataloader.eval}
+  evaluator: CaptionEvaluator
+
+scan2cap:
+  mode: [val, test]
+  dataset: LeoScan2Cap
+  dataset_wrapper: LeoObjPadDatasetWrapper
+  dataset_wrapper_args: ${dataset_wrapper_args}
+  eval_dataloader_args: ${dataloader.eval}
+  evaluator: CaptionEvaluator

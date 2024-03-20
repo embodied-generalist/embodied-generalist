@@ -1,0 +1,2 @@
+data/paraphrase-en.gz filter=lfs diff=lfs merge=lfs -text
+meteor-1.5.jar filter=lfs diff=lfs merge=lfs -text

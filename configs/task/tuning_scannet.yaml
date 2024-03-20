@@ -1,0 +1,79 @@
+# train
+training:
+  lr: 3e-5
+  epochs: 10
+
+leomix:
+  mode: [train]
+  dataset: LeoMix
+  mix: [scan2cap, scanqa, sqa3d]
+  ratio: 1.0
+  dataset_wrapper: LeoObjPadDatasetWrapper
+  dataset_wrapper_args: ${dataset_wrapper_args}
+  train_dataloader_args: ${dataloader.train}
+  eval_dataloader_args: ${dataloader.eval}
+
+# eval
+cap3d:
+  mode: [test]
+  dataset: LeoCap3D
+  dataset_wrapper: LeoObjPadDatasetWrapper
+  dataset_wrapper_args: ${dataset_wrapper_args}
+  eval_dataloader_args: ${dataloader.eval}
+  evaluator: CaptionEvaluator
+
+scene_cap:
+  mode: [test]
+  dataset: LeoSceneCap
+  dataset_wrapper: LeoObjPadDatasetWrapper
+  dataset_wrapper_args: ${dataset_wrapper_args}
+  eval_dataloader_args: ${dataloader.eval}
+  evaluator: CaptionEvaluator
+
+scan2cap:
+  mode: [val, test]
+  dataset: LeoScan2Cap
+  dataset_wrapper: LeoObjPadDatasetWrapper
+  dataset_wrapper_args: ${dataset_wrapper_args}
+  eval_dataloader_args: ${dataloader.eval}
+  evaluator: CaptionEvaluator
+
+scanqa:
+  mode: [val, test]
+  dataset: LeoScanQA
+  dataset_wrapper: LeoObjPadDatasetWrapper
+  dataset_wrapper_args: ${dataset_wrapper_args}
+  eval_dataloader_args: ${dataloader.eval}
+  evaluator: ScanQAEvaluator
+
+sqa3d:
+  mode: [val, test]
+  dataset: LeoSQA3D
+  dataset_wrapper: LeoObjPadDatasetWrapper
+  dataset_wrapper_args: ${dataset_wrapper_args}
+  eval_dataloader_args: ${dataloader.eval}
+  evaluator: SQA3DEvaluator
+
+rscan_qa:
+  mode: [test]
+  dataset: Leo3RScanQA
+  dataset_wrapper: LeoObjPadDatasetWrapper
+  dataset_wrapper_args: ${dataset_wrapper_args}
+  eval_dataloader_args: ${dataloader.eval}
+  evaluator: ScanQAEvaluator
+
+rscan_plan:
+  mode: [test]
+  dataset: Leo3RScanPlan
+  dataset_wrapper: LeoObjPadDatasetWrapper
+  dataset_wrapper_args: ${dataset_wrapper_args}
+  eval_dataloader_args: ${dataloader.eval}
+  evaluator: CaptionEvaluator
+
+rscan_dialog:
+  mode: [test]
+  dataset: Leo3RScanDialog
+  dataset_wrapper: LeoObjPadDatasetWrapper
+  dataset_wrapper_args: ${dataset_wrapper_args}
+  eval_dataloader_args: ${dataloader.eval}
+  evaluator: CaptionEvaluator

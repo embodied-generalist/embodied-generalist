@@ -1,0 +1,23 @@
+# train
+training:
+  lr: 3e-5
+  epochs: 10
+
+leomix:
+  mode: [train]
+  dataset: LeoMix
+  mix: [sqa3d]
+  ratio: 1.0
+  dataset_wrapper: LeoObjPadDatasetWrapper
+  dataset_wrapper_args: ${dataset_wrapper_args}
+  train_dataloader_args: ${dataloader.train}
+  eval_dataloader_args: ${dataloader.eval}
+
+# eval
+sqa3d:
+  mode: [val, test]
+  dataset: LeoSQA3D
+  dataset_wrapper: LeoObjPadDatasetWrapper
+  dataset_wrapper_args: ${dataset_wrapper_args}
+  eval_dataloader_args: ${dataloader.eval}
+  evaluator: SQA3DEvaluator
