@@ -227,7 +227,7 @@ class LeoTrainer():
                 self.evaluators[task_name].reset()
 
         # simply summing up
-        overall_avg_metrics = sum(list(self.eval_metrics.values()))
+        overall_avg_metrics = sum(list(self.eval_metrics.values())) / len(self.eval_metrics)
         self.log({'avg_metrics': overall_avg_metrics}, mode='val', task='overall')
         if overall_avg_metrics > self.exp_tracker.overall_best_result:
             is_best = True

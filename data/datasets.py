@@ -1068,7 +1068,7 @@ class Leo3RScanPlan(LeoBase):
         )
         data_dict.update({
             'source': '3rscan',
-            'scece_id': scan_id,
+            'scene_id': scan_id,
             'obj_fts': obj_fts,
             'obj_locs': obj_locs,
             'anchor_locs': anchor_loc,
