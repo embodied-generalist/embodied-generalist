@@ -31,7 +31,7 @@ scan2cap:
   num_points: ${data.num_points}
   pc_type: gt   # overrided from CLI
   iou_thres: 0.5
-  corpus: ${data.instruction_base}/scan2cap/scanrefer_corpus.pth
+  corpus: ${data.instruction_base}/scan2cap/scanrefer_corpus.json
 
 scanqa:
   scannet_base: ${data.scan_family_base}

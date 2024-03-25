@@ -54,7 +54,7 @@ We meticulously collect extensive diverse data for training **LEO**. <sup>&dagge
 
 
 ## News
-**[2024.03]** We release the code, data and model weights. The embodied AI (EAI) tasks (navigation and manipulation) need further organization and will be released soon.
+**[2024.03]** We release the code and data. The embodied AI (EAI) tasks (navigation and manipulation) need further organization and will be released soon.
 
 **[2024.01]** We release a [Huggingface interactive demo](https://huggingface.co/spaces/embodied-generalist/LEO-Demo). Chat with **LEO** and enjoy yourself.
 
@@ -115,13 +115,14 @@ python -c 'from model.pointnetpp.pointnetpp import PointNetPP'
 ├── ${scannet_base}
     ├── scan_data
     │   └── pcd_with_global_alignment
-    │       ├── ${scene_id}.pth
+    │       ├── ${scan_id}.pth
     └── mask
-        ├── ${scene_id}.mask.npz
+        ├── ${scan_id}.mask.npz
 
 ├── ${rscan_base}
     └── 3RScan-ours-align
-        ├── ${scene_id}
+        ├── ${scan_id}
+            ├── pcds.pth
             ├── pcd-align.pth
             └── inst_to_label.pth
 
@@ -147,14 +148,14 @@ python -c 'from model.pointnetpp.pointnetpp import PointNetPP'
     │   ├── scannet_referit3d_nr3d.jsonl
     │   └── scannet_referit3d_sr3d+.jsonl
     └── scene_caption
-        └── 3rscan_scene_cap_prompted.json
+        ├── 3rscan_scenecap_train.json
+        └── 3rscan_scenecap_val.json
 
 ├── ${instruction_base}
     ├── scan2cap
-    │   ├── scannet_scanrefer.jsonl
-    │   ├── scannetv2_train.txt
-    │   ├── scannetv2_val.txt
-    │   └── scanrefer_corpus.pth
+    │   ├── scanrefer_train.json
+    │   ├── scanrefer_val.json
+    │   └── scanrefer_corpus.json
     ├── scanqa
     │   ├── ScanQA_v1.0_train.json
     │   └── ScanQA_v1.0_val.json
@@ -166,11 +167,14 @@ python -c 'from model.pointnetpp.pointnetpp import PointNetPP'
     │   ├── v1_balanced_sqa_annotations_val_scannetv2.json
     │   └── v1_balanced_sqa_annotations_test_scannetv2.json
     ├── 3rscanqa
-    │   └── 3rscan_qa_prompted_aug.json
+    │   ├── 3rscan_qa_train.json
+    │   └── 3rscan_qa_val.json
     ├── dialogue
-    │   └── 3rscan_dialog_prompted.json
+    │   ├── 3rscan_dialog_train.json
+    │   └── 3rscan_dialog_val.json
     └── planning
-        └── 3rscan_plan_prompted.json
+        ├── 3rscan_plan_train.json
+        └── 3rscan_plan_val.json
 ```
 
 **Data configurations.** After data preparation, check `configs/data/default.yaml` to update the paths, including `scan_family_base`, `rscan_base`, `alignment_base`

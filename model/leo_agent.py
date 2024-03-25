@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from accelerate.logging import get_logger
 from einops import rearrange
 from peft import LoraConfig, get_peft_model
-from transformers import LlamaForCausalLM, LlamaTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, LlamaForCausalLM, LlamaTokenizer
 
 from model.build import build_module
 from model.utils import disabled_train, maybe_autocast
@@ -20,15 +20,19 @@ class LeoAgent(nn.Module):
         super().__init__()
 
         # LLM
-        self.llm_tokenizer = LlamaTokenizer.from_pretrained(
-            cfg.llm.cfg_path, use_fast=False, truncation_side=cfg.llm.truncation_side
-        )
-        self.llm_tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        self.llm_tokenizer.add_special_tokens({'bos_token': '<s>'})
-        self.llm_tokenizer.add_special_tokens({'eos_token': '</s>'})
-        self.llm_tokenizer.add_special_tokens({'unk_token': '</s>'})
-        self.llm_model = LlamaForCausalLM.from_pretrained(cfg.llm.cfg_path, torch_dtype=torch.float16)
-        self.llm_model.resize_token_embeddings(len(self.llm_tokenizer))
+        if 'vicuna' in cfg.llm.name.lower():
+            self.llm_tokenizer = LlamaTokenizer.from_pretrained(
+                cfg.llm.cfg_path, truncation_side=cfg.llm.truncation_side
+            )
+            self.llm_tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+            self.llm_model = LlamaForCausalLM.from_pretrained(cfg.llm.cfg_path, torch_dtype=torch.float16)
+            self.llm_model.resize_token_embeddings(len(self.llm_tokenizer))
+        else:
+            self.llm_tokenizer = AutoTokenizer.from_pretrained(
+                cfg.llm.cfg_path, truncation_side=cfg.llm.truncation_side
+            )
+            self.llm_model = AutoModelForCausalLM.from_pretrained(cfg.llm.cfg_path, torch_dtype=torch.float16)
+
         logger.info(f"Build {cfg.llm.name} from {cfg.llm.cfg_path}")
 
         for param in self.llm_model.parameters():
@@ -171,19 +175,20 @@ class LeoAgent(nn.Module):
             max_length=self.max_context_len,
         ).to(device)   # [BOS, tokens, PAD], (B, T3)
 
-        # hardcode, remove bos, make "tokenize subseq and concat" equivalent to "tokenize the whole seq"
         assert text_input_tokens_mid1.attention_mask.all() and text_input_tokens_mid2.attention_mask.all(), \
                "prompt_middle should be the same and thus no padding"
 
+        # remove bos, make "tokenize subseq and concat" equivalent to "tokenize the whole seq"
         text_input_tokens_mid1.input_ids = text_input_tokens_mid1.input_ids[:, 1:]
         text_input_tokens_mid1.attention_mask = text_input_tokens_mid1.attention_mask[:, 1:]
+        text_input_tokens_mid2.input_ids = text_input_tokens_mid2.input_ids[:, 1:]
+        text_input_tokens_mid2.attention_mask = text_input_tokens_mid2.attention_mask[:, 1:]
+        text_input_tokens_post.input_ids = text_input_tokens_post.input_ids[:, 1:]
+        text_input_tokens_post.attention_mask = text_input_tokens_post.attention_mask[:, 1:]
         for i in range(bs):
             if not img_masks[i].any():
                 # no image input, also mask the text prompt for image tokens
                 text_input_tokens_mid1.attention_mask[i].fill_(0)
-
-        text_input_tokens_mid2.input_ids[:, 0] = 869   # 1 (bos) -> 869 (▁.)
-        text_input_tokens_post.input_ids[:, 0] = 869   # 1 (bos) -> 869 (▁.)
 
         inputs_embeds_pre = self.llm_model.get_input_embeddings()(text_input_tokens_pre.input_ids)
         inputs_embeds_mid1 = self.llm_model.get_input_embeddings()(text_input_tokens_mid1.input_ids)
@@ -371,7 +376,7 @@ class LeoAgent(nn.Module):
                 num_return_sequences=num_captions,
             )
 
-        outputs[outputs == 0] = 2   # convert output id 0 (unk_token) to 2 (eos_token)
+        outputs[outputs == self.llm_tokenizer.unk_token_id] = self.llm_tokenizer.eos_token_id
         # data_dict['output_tokens'] = outputs   # unable to gather variable-length tensors
 
         output_txt = self.llm_tokenizer.batch_decode(outputs, skip_special_tokens=True)
@@ -392,7 +397,7 @@ class LeoAgent(nn.Module):
 
         self.llm_tokenizer.padding_side = 'right'
         answer_candidates = self.llm_tokenizer(
-            answer_list, padding="longest", return_tensors="pt"
+            answer_list, padding='longest', return_tensors='pt'
         ).to(device)
 
         answer_ids = answer_candidates.input_ids

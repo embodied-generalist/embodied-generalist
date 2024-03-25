@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import numpy as np
@@ -43,7 +44,8 @@ class CaptionEvaluator():
 
     def init_corpus(self):
         if self.task_name.lower() == 'scan2cap':
-            self.gt_sentence_mp = torch.load(self.corpus_path)
+            with open(self.corpus_path, 'r') as f:
+                self.gt_sentence_mp = json.load(f)
             self.pred_sentence_mp = {}
         else:
             # init with list, finally convert to dict

@@ -199,7 +199,7 @@ class LeoCap3D(LeoBase):
     situation_pool = Leo_situation_pool
     instruction_pool = Leo_objcap_instruction_pool
 
-    def __init__(self, cfg, split='train'):
+    def __init__(self, cfg, split):
         super().__init__()
         self.split = split
         self.cap3d_root = cfg.data.cap3d.cap3d_root
@@ -401,9 +401,9 @@ class LeoObjSceneCap(LeoBase):
 class LeoSceneCap(LeoBase):
     instruction_pool = Leo_scenecap_instruction_pool
 
-    def __init__(self, cfg, split='train'):
+    def __init__(self, cfg, split):
         super().__init__()
-        self.split = split
+        self.split = 'train' if split == 'train' else 'val'
         self.rscan_base = cfg.data.scene_cap.rscan_base
         self.num_points = cfg.data.scene_cap.num_points
         self.max_obj_len = cfg.data.scene_cap.max_obj_len
@@ -412,14 +412,6 @@ class LeoSceneCap(LeoBase):
         logger.info(f"Loading LeoSceneCap {split}-set language")
         self.scan_ids, self.lang_data, self.scan_insts = self.load_anno(cfg.data.scene_cap.anno_dir)
         # scan_ids may be repeatitive
-        if self.split == 'train':
-            self.scan_ids = self.scan_ids[:-500]
-            self.lang_data = self.lang_data[:-500]
-            self.scan_insts = self.scan_insts[:-500]
-        else:
-            self.scan_ids = self.scan_ids[-500:]
-            self.lang_data = self.lang_data[-500:]
-            self.scan_insts = self.scan_insts[-500:]
         logger.info(f"Finish loading LeoSceneCap {split}-set language, collected {len(self.scan_ids)} data")
 
         self.scan_data = {}
@@ -428,25 +420,24 @@ class LeoSceneCap(LeoBase):
         scan_ids = []
         scan_caps = []
         scan_insts = []   # relevant instances
-        for fname in os.listdir(anno_dir):
-            if fname.endswith('json'):
-                with open(os.path.join(anno_dir, fname)) as f:
-                    json_data = json.load(f)
-                for k, v in json_data.items():
-                    for meta_anno in v:
-                        scene_graph = eval(meta_anno['query'])
-                        insts = [int(s.split('-')[-1]) for s in scene_graph.keys()]
+        anno_file = os.path.join(anno_dir, f'3rscan_scenecap_{self.split}.json')
+        with open(anno_file, 'r') as f:
+            json_data = json.load(f)
+        for k, v in json_data.items():
+            for meta_anno in v:
+                scene_graph = eval(meta_anno['query'])
+                insts = [int(s.split('-')[-1]) for s in scene_graph.keys()]
 
-                        cap = meta_anno['response']
-                        all_caps = self._split_sentence(
-                            sentence='. '.join(cap.split('. ')[1:]),
-                            max_length=self.max_caption_length,
-                            prefix=cap.split('. ')[0] + '. ',
-                        )
-                        for c in all_caps:
-                            scan_caps.append(c)
-                            scan_ids.append(k)
-                            scan_insts.append(insts)
+                cap = meta_anno['response']
+                all_caps = self._split_sentence(
+                    sentence='. '.join(cap.split('. ')[1:]),
+                    max_length=self.max_caption_length,
+                    prefix=cap.split('. ')[0] + '. ',
+                )
+                for c in all_caps:
+                    scan_caps.append(c)
+                    scan_ids.append(k)
+                    scan_insts.append(insts)
 
         return scan_ids, scan_caps, scan_insts
 
@@ -517,8 +508,8 @@ class LeoScan2Cap(LeoBase):
             self.split = 'train'
             self.pc_type = 'gt'
         else:
-            self.split = 'val'   # test set inaccessible
-            self.pc_type = getattr(cfg.data.scan2cap, 'pc_type', 'gt')        
+            self.split = 'val'
+            self.pc_type = getattr(cfg.data.scan2cap, 'pc_type', 'gt')
 
         self.iou_threshold = getattr(cfg.data.scan2cap, 'iou_thres', 0.5)
 
@@ -530,35 +521,33 @@ class LeoScan2Cap(LeoBase):
         self.scan_data = {}
 
     def load_anno(self, anno_dir):
-        anno_file = os.path.join(anno_dir, 'scannet_scanrefer.jsonl')
-        split_file = os.path.join(anno_dir, f'scannetv2_{self.split}.txt')
-        split_scan_ids = set([x.strip() for x in open(split_file, 'r')])
         scan_ids = []
         scan_caps = []
         corpus_cache = []
-        with jsonlines.open(anno_file, 'r') as f:
-            for item in f:
-                if item['scan_id'] in split_scan_ids:
-                    scan_id = item['scan_id']
-                    obj_id = int(item['target_id'])
-                    obj_name = item['instance_type']
-                    key = f'{scan_id}|{obj_id}|{obj_name}'
-                    if self.split != 'train' and key in corpus_cache:
-                        continue
-                    # only evaluate once per obj instance
-                    corpus_cache.append(key)
-                    cap = item['utterance']
-                    all_caps = self._split_sentence(
-                        sentence='. '.join(cap.split('. ')[1:]),
-                        max_length=self.max_caption_length,
-                        prefix=cap.split('. ')[0] + '. ',
-                    )
-                    for c in all_caps:
-                        scan_ids.append(item['scan_id'])
-                        scan_caps.append({
-                            'obj_id': item['target_id'],
-                            'caption': c,
-                        })
+        anno_file = os.path.join(anno_dir, f'scanrefer_{self.split}.json')
+        with open(anno_file, 'r') as f:
+            json_data = json.load(f)
+        for item in json_data:
+            scan_id = item['scan_id']
+            obj_id = int(item['target_id'])
+            obj_name = item['instance_type']
+            key = f'{scan_id}|{obj_id}|{obj_name}'
+            if self.split != 'train' and key in corpus_cache:
+                continue
+            # only evaluate once per obj instance
+            corpus_cache.append(key)
+            cap = item['utterance']
+            all_caps = self._split_sentence(
+                sentence='. '.join(cap.split('. ')[1:]),
+                max_length=self.max_caption_length,
+                prefix=cap.split('. ')[0] + '. ',
+            )
+            for c in all_caps:
+                scan_ids.append(item['scan_id'])
+                scan_caps.append({
+                    'obj_id': item['target_id'],
+                    'caption': c,
+                })
 
         return scan_ids, scan_caps, corpus_cache
 
@@ -651,7 +640,7 @@ class LeoScanQA(LeoBase):
             self.split = 'train'
             self.pc_type = 'gt'
         else:
-            self.split = 'val'   # test split inaccessible
+            self.split = 'val'
             self.pc_type = getattr(cfg.data.scanqa, 'pc_type', 'gt')
 
         logger.info(f"Loading LeoScanQA {split}-set language")
@@ -903,7 +892,7 @@ class Leo3RScanQA(LeoBase):
 
     def __init__(self, cfg, split):
         super().__init__()
-        self.split = split
+        self.split = 'train' if split == 'train' else 'val'
         self.rscan_base = cfg.data.rscan_qa.rscan_base
         self.num_points = cfg.data.rscan_qa.num_points
         self.max_obj_len = cfg.data.rscan_qa.max_obj_len
@@ -911,14 +900,6 @@ class Leo3RScanQA(LeoBase):
         logger.info(f"Loading Leo3RScanQA {split}-set language")
         self.scan_ids, self.lang_data, self.scan_insts = self.load_anno(cfg.data.rscan_qa.anno_dir)
         # scan_ids may be repeatitive
-        if self.split == 'train':
-            self.scan_ids = self.scan_ids[:-4000]
-            self.lang_data = self.lang_data[:-4000]
-            self.scan_insts = self.scan_insts[:-4000]
-        else:
-            self.scan_ids = self.scan_ids[-4000:]
-            self.lang_data = self.lang_data[-4000:]
-            self.scan_insts = self.scan_insts[-4000:]
         logger.info(f"Finish loading Leo3RScanQA {split}-set language, collected {len(self.scan_ids)} data")
 
         self.scan_data = {}
@@ -927,24 +908,23 @@ class Leo3RScanQA(LeoBase):
         scan_ids = []
         scan_qa_pairs = []
         scan_insts = []
-        for fname in os.listdir(anno_dir):
-            if fname.endswith('json'):
-                with open(os.path.join(anno_dir, fname)) as f:
-                    json_data = json.load(f)
-                for k, v in json_data.items():
-                    for meta_anno in v['response']:
-                        # try to parse concerned objects
-                        try:
-                            insts = meta_anno['T'].split(', ')
-                            insts = [int(s.split('-')[-1]) for s in insts]
-                        except:
-                            insts = []
-                        scan_insts.append(insts)
-                        scan_ids.append(k)
-                        scan_qa_pairs.append({
-                            'q': meta_anno['Q'],   # str
-                            'a': [a.strip() for a in meta_anno['A']],   # list of str
-                        })
+        anno_file = os.path.join(anno_dir, f'3rscan_qa_{self.split}.json')
+        with open(anno_file, 'r') as f:
+            json_data = json.load(f)
+        for k, v in json_data.items():
+            for meta_anno in v['response']:
+                # try to parse concerned objects
+                try:
+                    insts = meta_anno['T'].split(', ')
+                    insts = [int(s.split('-')[-1]) for s in insts]
+                except:
+                    insts = []
+                scan_insts.append(insts)
+                scan_ids.append(k)
+                scan_qa_pairs.append({
+                    'q': meta_anno['Q'],   # str
+                    'a': [a.strip() for a in meta_anno['A']],   # list of str
+                })
 
         return scan_ids, scan_qa_pairs, scan_insts
 
@@ -1005,7 +985,7 @@ class Leo3RScanPlan(LeoBase):
     instruction_prefix_pool = Leo_plan_instruction_pool
     def __init__(self, cfg, split):
         super().__init__()
-        self.split = split
+        self.split = 'train' if split == 'train' else 'val'
         self.rscan_base = cfg.data.rscan_plan.rscan_base
         self.num_points = cfg.data.rscan_plan.num_points
         self.max_obj_len = cfg.data.rscan_plan.max_obj_len
@@ -1013,12 +993,6 @@ class Leo3RScanPlan(LeoBase):
         logger.info(f"Loading Leo3RScanPlan {split}-set language")
         self.scan_ids, self.lang_data = self.load_anno(cfg.data.rscan_plan.anno_dir)
         # scan_ids may be repeatitive
-        if self.split == 'train':
-            self.scan_ids = self.scan_ids[:-500]
-            self.lang_data = self.lang_data[:-500]
-        else:
-            self.scan_ids = self.scan_ids[-500:]
-            self.lang_data = self.lang_data[-500:]
         logger.info(f"Finish loading Leo3RScanPlan {split}-set language, collected {len(self.scan_ids)} data")
 
         self.scan_data = {}
@@ -1026,18 +1000,17 @@ class Leo3RScanPlan(LeoBase):
     def load_anno(self, anno_dir):
         scan_ids = []
         lang_data = []
-        for fname in os.listdir(anno_dir):
-            if fname.endswith('json'):
-                with open(os.path.join(anno_dir, fname)) as f:
-                    json_data = json.load(f)
-                for k, v in json_data.items():
-                    for meta_anno in v['response']:
-                        scan_ids.append(k)
-                        lang_data.append({
-                            'goal': meta_anno['instruction'],
-                            'plan': meta_anno['plan'],
-                        })
-                        # no split operation as we assume the response length has been processed in advance
+        anno_file = os.path.join(anno_dir, f'3rscan_plan_{self.split}.json')
+        with open(anno_file, 'r') as f:
+            json_data = json.load(f)
+        for k, v in json_data.items():
+            for meta_anno in v['response']:
+                scan_ids.append(k)
+                lang_data.append({
+                    'goal': meta_anno['instruction'],
+                    'plan': meta_anno['plan'],
+                })
+                # no split operation as we assume the response length has been processed in advance
 
         return scan_ids, lang_data
 
@@ -1100,7 +1073,7 @@ class Leo3RScanDialog(LeoBase):
     """
     def __init__(self, cfg, split):
         super().__init__()
-        self.split = split
+        self.split = 'train' if split == 'train' else 'val'
         self.rscan_base = cfg.data.rscan_dialog.rscan_base
         self.num_points = cfg.data.rscan_dialog.num_points
         self.max_obj_len = cfg.data.rscan_dialog.max_obj_len
@@ -1108,12 +1081,6 @@ class Leo3RScanDialog(LeoBase):
         logger.info(f"Loading Leo3RScanDialog {split}-set language")
         self.scan_ids, self.lang_data = self.load_anno(cfg.data.rscan_dialog.anno_dir)
         # scan_ids may be repeatitive
-        if self.split == 'train':
-            self.scan_ids = self.scan_ids[:-500]
-            self.lang_data = self.lang_data[:-500]
-        else:
-            self.scan_ids = self.scan_ids[-500:]
-            self.lang_data = self.lang_data[-500:]
         logger.info(f"Finish loading Leo3RScanDialog {split}-set language, collected {len(self.scan_ids)} data")
 
         self.scan_data = {}
@@ -1121,34 +1088,33 @@ class Leo3RScanDialog(LeoBase):
     def load_anno(self, anno_dir):
         scan_ids = []
         lang_data = []
-        for fname in os.listdir(anno_dir):
-            if fname.endswith('json'):
-                with open(os.path.join(anno_dir, fname)) as f:
-                    json_data = json.load(f)
-                for k, v in json_data.items():
-                    dialogs = v['response']
-                    for dialog in dialogs:
-                        assert dialog[0]['role'] == 'Human', "Dialogue should start with Human"
-                        assert len(dialog) > 1, "Dialogue should contain Robot responses"
-                        history = f"USER: {dialog[0]['content']} ASSISTANT:"
+        anno_file = os.path.join(anno_dir, f'3rscan_dialog_{self.split}.json')
+        with open(anno_file, 'r') as f:
+            json_data = json.load(f)
+        for k, v in json_data.items():
+            dialogs = v['response']
+            for dialog in dialogs:
+                assert dialog[0]['role'] == 'Human', "Dialogue should start with Human"
+                assert len(dialog) > 1, "Dialogue should contain Robot responses"
+                history = f"USER: {dialog[0]['content']} ASSISTANT:"
+                scan_ids.append(k)
+                lang_data.append({
+                    'history': history,
+                    'response': dialog[1]['content'].strip(),
+                })
+                for i in range(1, len(dialog)):
+                    meta_anno = dialog[i]
+                    if i % 2 == 0 and i+1 < len(dialog):
+                        # Human
+                        history += f"USER: {meta_anno['content']} ASSISTANT:"
                         scan_ids.append(k)
                         lang_data.append({
                             'history': history,
-                            'response': dialog[1]['content'].strip(),
+                            'response': dialog[i+1]['content'].strip(),
                         })
-                        for i in range(1, len(dialog)):
-                            meta_anno = dialog[i]
-                            if i % 2 == 0 and i+1 < len(dialog):
-                                # Human
-                                history += f"USER: {meta_anno['content']} ASSISTANT:"
-                                scan_ids.append(k)
-                                lang_data.append({
-                                    'history': history,
-                                    'response': dialog[i+1]['content'].strip(),
-                                })
-                            else:
-                                # Robot
-                                history += f" {meta_anno['content'].strip()}</s>"
+                    else:
+                        # Robot
+                        history += f" {meta_anno['content'].strip()}</s>"
 
         return scan_ids, lang_data
 
