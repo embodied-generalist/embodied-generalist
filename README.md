@@ -106,7 +106,7 @@ python -c 'from model.pointnetpp.pointnetpp import PointNetPP'
 ## Task and Data
 **Data preparation.** The [data](https://drive.google.com/drive/folders/1dko2dzdwRWSK3hi1liBpGHZ8Dz97jXdP?usp=sharing) includes two components: scan data and language annotations.
 - **Scan data.** To simplify the preparation and save storage, we streamline the scan data (point clouds and instance segments), which is less than 10G yet already sufficient for experiments on **LEO**. You can download the compressed files from the links below and arrange the data according to the illustration of scan data structure.
-  - **ScanNet**: [pcd_with_global_alignment](https://drive.google.com/file/d/1N9LQfDlC0UxJCPefdYeP54TT-TfwOrLh/view?usp=sharing), [mask (Mask3D proposals)](https://drive.google.com/file/d/1AACMAjlFFGZsKJYAh8hFikFGKtYC6epk/view?usp=sharing).
+  - **ScanNet**: [pcd_with_global_alignment](https://drive.google.com/file/d/1YlChqK4-UkUNprT2tIJY0mwCloL_kRat/view?usp=sharing), [mask (Mask3D proposals)](https://drive.google.com/file/d/1AACMAjlFFGZsKJYAh8hFikFGKtYC6epk/view?usp=sharing).
   - **3RScan**: [3RScan-ours-align](https://drive.google.com/file/d/11xltRZ2BVzJWN4uqOAQgbLspWjacQyAJ/view?usp=sharing).
   - **Cap3D**. Please refer to [Cap3D data](https://huggingface.co/datasets/tiange/Cap3D) for preparing the point clouds, where we use [pcs_pt](https://huggingface.co/datasets/tiange/Cap3D/tree/main/PointCloud_pt_zips). The corresponding annotation file (`Cap3D_automated_Objaverse_no3Dword.csv`) is included in our released annotations.
 ```
