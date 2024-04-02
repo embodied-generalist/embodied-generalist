@@ -11,3 +11,7 @@ python launch.py --name leo_tuning \
                  note=tuning_vicuna13b \
                  llm=vicuna13b \
                  pretrained_ckpt_path={TBD} \
+                 dataloader.train.batchsize=1 \
+                 dataloader.train.num_workers=1 \
+                 dataloader.eval.batchsize=1 \
+                 dataloader.eval.num_workers=1 \

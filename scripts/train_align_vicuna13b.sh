@@ -10,3 +10,7 @@ python launch.py --name leo_align \
                  task=align \
                  note=align_vicuna13b \
                  llm=vicuna13b \
+                 dataloader.train.batchsize=2 \
+                 dataloader.train.num_workers=2 \
+                 dataloader.eval.batchsize=2 \
+                 dataloader.eval.num_workers=2 \

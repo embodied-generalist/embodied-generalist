@@ -57,3 +57,11 @@ eval:
 clip_txt_guidance:
   flag: False   # for eai
   clip_out_dim: 1024
+
+# inference
+probe:
+  sources: [3rscan]
+  scene_ids: [0cac75d0-8d6f-2d13-8c26-d771a31c3f50]
+  situations: ""
+  instructions: [Describe this scene.]
+  save_obj_tokens: True

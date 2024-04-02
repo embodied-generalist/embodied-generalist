@@ -8,7 +8,7 @@ python launch.py --name leo_tuning \
                  --num_nodes 1 \
                  --partition HGX \
                  mode=eval \
-                 task=test_scannet_mask3d \
+                 task=test_scannet \
                  note=test_scannet_mask3d \
                  data.scan2cap.pc_type=pred \
                  data.scanqa.pc_type=pred \

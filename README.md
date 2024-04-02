@@ -27,7 +27,7 @@
     <img src="https://img.shields.io/badge/Video-YouTube-9966ff" alt="Video"></a>
     <a href="https://drive.google.com/drive/folders/1dko2dzdwRWSK3hi1liBpGHZ8Dz97jXdP?usp=sharing" target="_blank">
     <img src="https://img.shields.io/badge/Data-LEO-blue" alt="Data"></a>
-    <a href="placeholder" target="_blank">
+    <a href="https://drive.google.com/drive/folders/1dko2dzdwRWSK3hi1liBpGHZ8Dz97jXdP?usp=sharing" target="_blank">
     <img src="https://img.shields.io/badge/Model-LEO-darkorange" alt="Model"></a>
 </div>
 &nbsp;
@@ -54,7 +54,9 @@ We meticulously collect extensive diverse data for training **LEO**. <sup>&dagge
 
 
 ## News
-**[2024.03]** We release the code and data. The embodied AI (EAI) tasks (navigation and manipulation) need further organization and will be released soon.
+**[2024.04]** We release the scripts for inference and scaling law analysis, and [model weights](https://drive.google.com/drive/folders/1dko2dzdwRWSK3hi1liBpGHZ8Dz97jXdP?usp=sharing).
+
+**[2024.03]** We release the code and [data](https://drive.google.com/drive/folders/1dko2dzdwRWSK3hi1liBpGHZ8Dz97jXdP?usp=sharing). The embodied AI (EAI) tasks (navigation and manipulation) need further organization and will be released soon.
 
 **[2024.01]** We release a [Huggingface interactive demo](https://huggingface.co/spaces/embodied-generalist/LEO-Demo). Chat with **LEO** and enjoy yourself.
 
@@ -188,16 +190,20 @@ and `instruction_base`.
 - **LLM**: [Vicuna-7B](https://huggingface.co/huangjy-pku/vicuna-7b/tree/main). We use Vicuna v1.1 from [FastChat](https://github.com/lm-sys/FastChat), which you can refer to for the access of Vicuna-13B or more advanced versions. Remember to update `cfg_path` in `configs/llm/*.yaml`.
 - **Point cloud backbone**: [PointNet++](https://drive.google.com/file/d/1vq2ro_OwoTsa6JuIQVqfNFSbyWRuUGcG/view?usp=sharing), [PointBERT](https://drive.google.com/file/d/1RqjuUs6SI-0olklHGtCTT9h5jyV0gBxM/view?usp=sharing). We have not tried `PointNext`, but everything is ready except the pretrained weights. Remember to update `path` in `configs/vision3d/backbone/*.yaml`.
 
-**Instruction-tuned LEO weights.** Coming soon.
+**Trained LEO weights.** We release three checkpoints [here](https://drive.google.com/drive/folders/1dko2dzdwRWSK3hi1liBpGHZ8Dz97jXdP?usp=sharing):
+- `align_frozenllm.pth`: the checkpoint after the alignment stage, aligned with LLM frozen.
+- `align_lora.pth`: the checkpoint after the alignment stage, aligned with LoRA.
+- `tuning_noact.pth`: the checkpoint after the instruction tuning stage, based on `align_lora.pth` and tuned without embodied acting tasks.
 
 
 ## Running
-The training pipeline is elaborated in `trainer/leo_trainer.py`. Make sure the config file `configs/default.yaml` is properly set up before running.
+**Training.** The training pipeline is elaborated in `trainer/leo_trainer.py`. Make sure the config file `configs/default.yaml` is properly set up before running.
 - **General setup.** We use `wandb` as the default experiment logger. Remember to modify `logger.entity` to your account and init the `wandb`. Modify `name`, `note`, and `base_dir` for proper experiment output.
 - **Model.** The components of `LeoAgent` can be configured in `configs/llm`, `configs/vision2d` and `configs/vision3d`.
 - **Task.** You can configure the tasks by specifying a `yaml` in `configs/task`. You can also run new tasks by creating similar configs.
+- **GPU usage.** We run the experiments on 	NVIDIA A100-80GB and A800-80GB. Modify `dataloader` arguments for your GPU if necessary.
 
-We prepare some running scripts in `scripts/`, covering `train_align`, `train_tuning`, and `test`. The core is to run `launch.py` with proper arguments. There are three launch modes:
+We prepare some running scripts in `scripts/`, covering two-stage training and evaluation. The core is to run `launch.py` with proper arguments. There are three launch modes:
 ```shell
 # python launch
 python launch.py --mode python --config configs/default.yaml <HYDRA_CONFIG>
@@ -223,7 +229,18 @@ python launch.py --mode submitit \
                  note=align_lora \   # hydra: cfg.note, for exp_dir
 ```
 
-For more arguments, use `python launch.py --help`. Refer to [SLURM submitit](https://github.com/facebookincubator/submitit) or [Accelerate](https://huggingface.co/docs/accelerate/index) for more information.
+**Inference.** We prepare an inference script `scripts/inference.sh`, where we run a different python script `inference.py` in `python` mode by default:
+```shell
+# single-GPU python-mode launch
+python launch.py --mode python \
+                 --run_file inference.py \
+                 --config configs/default.yaml \
+                 note=tuning_noact \
+                 pretrained_ckpt_path=null \
+```
+Modify `probe` arguments in `configs/default.yaml` to customize the inputs for inference. You can select a checkpoint by specifying either `note` or `pretrained_ckpt_path`. For the former, `note` should align with the corresponding `note` for the training `exp_dir`. For the latter, you shoud assign with a checkpoint folder wherein `pytorch_model.bin` exists.
+
+**Launch mode.** For explanation of the launch arguments, use `python launch.py --help`. Refer to [SLURM submitit](https://github.com/facebookincubator/submitit) or [Accelerate](https://huggingface.co/docs/accelerate/index) for more information.
 
 
 ## Notes

@@ -1,0 +1,23 @@
+# train
+training:
+  lr: 3e-5
+  epochs: 10
+
+leomix:
+  mode: [train]
+  dataset: LeoMix
+  mix: [scanqa]
+  ratio: 1.0
+  dataset_wrapper: LeoObjPadDatasetWrapper
+  dataset_wrapper_args: ${dataset_wrapper_args}
+  train_dataloader_args: ${dataloader.train}
+  eval_dataloader_args: ${dataloader.eval}
+
+# eval
+scanqa:
+  mode: [val, test]
+  dataset: LeoScanQA
+  dataset_wrapper: LeoObjPadDatasetWrapper
+  dataset_wrapper_args: ${dataset_wrapper_args}
+  eval_dataloader_args: ${dataloader.eval}
+  evaluator: ScanQAEvaluator
