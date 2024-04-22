@@ -20,5 +20,6 @@ submitit==1.4.5
 timm==0.9.7
 tokenizers==0.13.3
 transformers==4.28.1
+transforms3d
 trimesh==3.22.3
 wandb==0.15.4

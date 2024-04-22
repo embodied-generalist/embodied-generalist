@@ -6,8 +6,8 @@ training:
 leomix:
   mode: [train]
   dataset: LeoMix
-  mix: [scan2cap, scanqa, sqa3d, rscan_qa, rscan_plan, rscan_dialog, objnav, cliport]
-  ratio: 1.0
+  mix: [scan2cap, scanqa, sqa3d, rscan_qa, rscan_plan, rscan_dialog, mp3d_objnav, cliport]
+  ratio: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.02, 0.05]
   dataset_wrapper: LeoObjPadDatasetWrapper
   dataset_wrapper_args: ${dataset_wrapper_args}
   train_dataloader_args: ${dataloader.train}
@@ -78,7 +78,7 @@ rscan_dialog:
   eval_dataloader_args: ${dataloader.eval}
   evaluator: CaptionEvaluator
 
-objnav:
+mp3d_objnav:
   mode: [val]   # offline test
   dataset: LeoMP3DObjNav
   dataset_wrapper: LeoObjPadDatasetWrapper

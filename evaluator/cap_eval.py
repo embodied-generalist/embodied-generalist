@@ -2,7 +2,6 @@ import json
 from pathlib import Path
 
 import numpy as np
-import torch
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.util import pytorch_cos_sim
 
@@ -101,14 +100,14 @@ class CaptionEvaluator():
                 # vision
                 'source': data_dict['source'][i],
                 'scene_id': data_dict['scene_id'][i],
-                'anchor': data_dict['anchor_locs'][i],
+                'anchor': data_dict['anchor_locs'][i].tolist(),
                 # language
                 'instruction': data_dict['prompt_after_obj'][i],
                 'response_gt': data_dict['output_gt'][i],
                 'response_pred': data_dict['output_txt'][i],
             }
             if 'iou_flag' in data_dict:
-                save_dict['iou_flag'] = data_dict['iou_flag'][i]
+                save_dict['iou_flag'] = data_dict['iou_flag'][i].item()
             self.save_results.append(save_dict)
 
         for key in self.eval_dict.keys():
@@ -141,6 +140,7 @@ class CaptionEvaluator():
             is_best = False
 
         if (is_best or split == 'test') and is_main_process:
-            torch.save(self.save_results, str(self.save_dir / 'results.pt'))
+            with open(str(self.save_dir / 'results.json'), 'w') as f:
+                json.dump(self.save_results, f, indent=2)
 
         return is_best, self.eval_dict

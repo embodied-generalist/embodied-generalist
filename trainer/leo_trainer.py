@@ -241,7 +241,6 @@ class LeoTrainer():
     def test_step(self):
         logger.info("Start final testing")
         self.model.eval()
-        all_results = {}
         for task_name in self.evaluators.keys():
             if task_name in self.data_loaders['test']:
                 loader = self.data_loaders['test'][task_name]
@@ -263,11 +262,10 @@ class LeoTrainer():
                 )
 
                 self.log(results, mode='test', task=task_name)
+                logger.info(f"{task_name}: {results}")
                 self.evaluators[task_name].reset()
-                all_results[task_name] = results
 
-        logger.info(f"Finish testing: {all_results}")
-        return all_results
+        logger.info("Finish testing")
 
     def log(self, results, mode='train', task='default'):
         log_dict = {}
@@ -309,16 +307,15 @@ class LeoTrainer():
             start_epoch = self.exp_tracker.epoch
             for epoch in range(start_epoch, self.epochs):
                 self.train_step(epoch)
-                self.exp_tracker.step()
-
-                self.save(model_only=False)   # automatic checkpointing
-                self.accelerator.wait_for_everyone()
-
                 if (epoch + 1) % self.val_interval == 0:
                     is_best = self.val_step(epoch)
                     if is_best:
                         self.save('best.pth', model_only=True)   # save the best checkpoint
                         self.accelerator.wait_for_everyone()
+
+                self.exp_tracker.step()
+                self.save(model_only=False)   # automatic checkpointing
+                self.accelerator.wait_for_everyone()
 
             # load best checkpoint for test
             logger.info("Training finished, load best checkpoint for testing")

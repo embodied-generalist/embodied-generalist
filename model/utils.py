@@ -22,9 +22,9 @@ def maybe_autocast(model, dtype='bf16', enabled=True):
     if dtype == 'bf16':
         dtype = torch.bfloat16
     elif dtype == 'fp16':
-        dtype == torch.float16
+        dtype = torch.float16
     else:
-        dtype == torch.float32
+        dtype = torch.float32
 
     if enable_autocast:
         return torch.cuda.amp.autocast(dtype=dtype, enabled=enabled)

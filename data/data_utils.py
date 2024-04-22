@@ -44,18 +44,15 @@ def visualize_point_cloud(pc_data, convert_to_0_1=False):
 
 def preprocess_2d(img, size=(224, 224)):
     # img: (H, W, 3)
-    # resize, normalize, to pytorch tensor format
-    img = cv2.resize(img, size).astype(np.float32)
-    for i in range(3):
-        img[:, :, i] = (img[:, :, i] / 255.0 - PIX_MEAN[i]) / PIX_STD[i]
+    # resize, normalize
+    img = cv2.resize(img, size)
+    img = (img / 255 - PIX_MEAN) / PIX_STD
     return np.ascontiguousarray(img.transpose(2, 0, 1))
 
 
 def recover_2d(img):
     # img: (H, W, 3)
-    # resize, normalize, to pytorch tensor format
-    for i in range(3):
-        img[:, :, i] = (img[:, :, i] * PIX_STD[i] + PIX_MEAN[i]) * 255.0
+    img = (img * PIX_STD + PIX_MEAN) * 255.0
     return np.ascontiguousarray(img.astype(np.uint8))
 
 

@@ -1,11 +1,14 @@
+import glob
 import json
 import os
 import random
 
+import cv2
 import jsonlines
 import nltk
 import numpy as np
 import pandas as pd
+import pickle
 import torch
 from accelerate.logging import get_logger
 from einops import rearrange
@@ -14,7 +17,9 @@ from torch.utils.data import Dataset
 
 from .build import DATASET_REGISTRY
 from .data_utils import build_rotate_mat, construct_bbox_corners, convert_pc_to_box, \
-                        eval_ref_one_sample, get_sqa_question_type
+                        eval_ref_one_sample, get_sqa_question_type, preprocess_2d
+from .eai import CLIPORT_ACTION_SPACE_TOKENIZE, HABITAT_ACTION_SPACE, HABITAT_ACTION_SPACE_TOKENIZE, \
+                 _DUMMY_CLIPORT_ACTION, _extract_between, shapenetcore_pp
 from .text_pool import *
 
 logger = get_logger(__name__)
@@ -629,6 +634,66 @@ class LeoScan2Cap(LeoBase):
 
 
 @DATASET_REGISTRY.register()
+class LeoNr3D(LeoScan2Cap):
+    situation_pool = Leo_situation_pool
+    instruction_pool = Leo_objcap_instruction_pool
+
+    def __init__(self, cfg, split):
+        super(LeoScan2Cap, self).__init__()
+        self.scannet_base = cfg.data.nr3d.scannet_base
+        self.num_points = cfg.data.nr3d.num_points
+        self.max_obj_len = cfg.data.nr3d.max_obj_len
+        self.max_caption_length = int(cfg.llm.max_out_len / LLAMA_TOKEN_SENT_RATIO)
+
+        if split == 'train':
+            self.split = 'train'
+            self.pc_type = 'gt'
+        else:
+            self.split = 'val'
+            self.pc_type = getattr(cfg.data.nr3d, 'pc_type', 'gt')
+
+        self.iou_threshold = getattr(cfg.data.nr3d, 'iou_thres', 0.5)
+
+        logger.info(f"Loading LeoNr3D {split}-set language")
+        self.scan_ids, self.lang_data, self.corpus_cache = self.load_anno(cfg.data.nr3d.anno_dir)
+        # scan_ids may be repeatitive
+        logger.info(f"Finish loading LeoNr3D {split}-set language, collected {len(self.scan_ids)} data")
+
+        self.scan_data = {}
+
+    def load_anno(self, anno_dir):
+        scan_ids = []
+        scan_caps = []
+        corpus_cache = []
+        anno_file = os.path.join(anno_dir, f'nr3d_{self.split}.json')
+        with open(anno_file, 'r') as f:
+            json_data = json.load(f)
+        for item in json_data:
+            scan_id = item['scan_id']
+            obj_id = int(item['target_id'])
+            obj_name = item['instance_type']
+            key = f'{scan_id}|{obj_id}|{obj_name}'
+            if self.split != 'train' and key in corpus_cache:
+                continue
+            # only evaluate once per obj instance
+            corpus_cache.append(key)
+            cap = item['utterance']
+            all_caps = self._split_sentence(
+                sentence='. '.join(cap.split('. ')[1:]),
+                max_length=self.max_caption_length,
+                prefix=cap.split('. ')[0] + '. ',
+            )
+            for c in all_caps:
+                scan_ids.append(item['scan_id'])
+                scan_caps.append({
+                    'obj_id': item['target_id'],
+                    'caption': c,
+                })
+
+        return scan_ids, scan_caps, corpus_cache
+
+
+@DATASET_REGISTRY.register()
 class LeoScanQA(LeoBase):
     def __init__(self, cfg, split):
         super().__init__()
@@ -1159,17 +1224,653 @@ class Leo3RScanDialog(LeoBase):
 
 
 @DATASET_REGISTRY.register()
+class LeoMP3DObjNav(LeoBase):
+    """
+    base_dir
+        - mp3d_obj
+            - scene_id
+                - objects.npy
+        - demos
+            - scene_id
+                - demo_id
+                    - demo.json
+                    - images
+                        - 0000.png
+                        ...
+    """
+    situation_pool = Leo_situation_pool
+    def __init__(self, cfg, split):
+        super().__init__()
+        self.split = 'train' if split == 'train' else 'val'
+        self.base_dir = cfg.data.mp3d_objnav.base_dir
+        self.max_obj_len = cfg.data.mp3d_objnav.max_obj_len
+        self.num_points = cfg.data.mp3d_objnav.num_points
+        self.max_traj_len = cfg.data.mp3d_objnav.max_traj_len
+        self.history_length = cfg.data.mp3d_objnav.history_length
+        self.num_pred = cfg.data.mp3d_objnav.num_pred
+        self.img_size = cfg.data.mp3d_objnav.img_size
+        self.scene_object_deterministic = cfg.data.mp3d_objnav.scene_object_deterministic
+
+        logger.info(f"Loading LeoMP3DObjNav {split}-set demos")
+        self.all_data, self.num_demos = self.load_demos(self.base_dir)
+        logger.info(f"Finish loading LeoMP3DObjNav {split}-set demos, collected " +
+                    f"{len(self.all_data)} data from {self.num_demos} demos")
+        self.scan_data = {}
+
+    def load_demos(self, anno_dir):
+        all_data = []
+        num_demos = 0
+        files = glob.glob(os.path.join(anno_dir, 'demos/*/*/demo.json'))
+        for file in files:
+            with open(file, 'r') as f:
+                traj = json.load(f)
+            if self.split == 'train':
+                if traj['scene_id'] in self.heldout_scenes:
+                    continue
+            else:
+                if traj['scene_id'] not in self.heldout_scenes:
+                    continue
+            if len(traj['agent']) > self.max_traj_len:
+                continue
+
+            scene_id = traj['scene_id']
+            goal = traj['goal']
+
+            all_actions = [self.action_space[step[1]] for step in traj['agent']]
+            for ind in range(0, len(traj['agent']), self.num_pred):
+                # range(0, len(traj['agent'])) for expanding datasets
+                cur_step = traj['agent'][ind]
+
+                # if there is no enough steps, just predict STOP
+                action = _extract_between(all_actions, ind, ind+self.num_pred-1, self.action_space['stop'])
+                history = _extract_between(all_actions, ind-self.history_length, ind-1, self.action_space['stop'])
+
+                all_data.append({
+                    'scene_id': scene_id,
+                    'obj_path': os.path.join(anno_dir, 'mp3d_obj', scene_id, 'objects.npy'),
+                    'img_path': os.path.join(os.path.dirname(file), 'images', '{:04d}.png'.format(ind)),
+                    'pos': np.array(cur_step[0]['position']).astype(np.float32),
+                    'rot': np.array(cur_step[0]['rotation']).astype(np.float32),
+                    'goal': goal,
+                    'action': np.array(action).astype(np.int32),
+                    'history': np.array(history).astype(np.int32)
+                })
+            num_demos += 1
+
+        return all_data, num_demos
+
+    def __len__(self):
+        return len(self.all_data)
+
+    def filter_obj_type(self, obj_list):
+        # obj_list: [array (num_points, 7)] * num_objs, the last column is semantic label
+        filtered = []
+        for obj_pcd in obj_list:
+            sem = obj_pcd[0, -1] - 1
+            if sem in shapenetcore_pp:
+                obj_pcd = obj_pcd[:, :6]
+                obj_pcd[:, 3:] = obj_pcd[:, 3:] * 2 - 1   # [0, 1] -> [-1, 1]
+                filtered.append(obj_pcd)
+        return filtered
+
+    def __getitem__(self, index):
+        data = self.all_data[index]
+        scene_id = data['scene_id']
+        goal = data['goal']
+        anchor_loc = data['pos']
+        anchor_orientation = data['rot']
+        past_actions = data['history']
+        actions = data['action']
+
+        # load pcds
+        if scene_id not in self.scan_data:
+            obj_list = np.load(data['obj_path'], allow_pickle=True)
+            self.scan_data[scene_id] = self.filter_obj_type(obj_list)
+
+        obj_pcds = self.scan_data[scene_id].copy()
+        # list: [np.ndarray (N, 6)]
+
+        # sample
+        num_objs = len(obj_pcds)
+        if self.scene_object_deterministic:
+            loc = random.Random(hash(scene_id))
+            selected_obj_pcds = loc.sample(obj_pcds, k=min(num_objs, self.max_obj_len))
+        else:
+            if self.split == 'train':
+                selected_obj_pcds = random.sample(obj_pcds, k=min(num_objs, self.max_obj_len))
+            else:
+                selected_obj_pcds = obj_pcds[:self.max_obj_len]
+        obj_fts, obj_locs, _ = self.preprocess_pcd(selected_obj_pcds, return_anchor=False)
+
+        # load img, have not changed channels since imgs are saved as BGR
+        img_fts = preprocess_2d(cv2.imread(data['img_path']), size=self.img_size)
+
+        # tokenize actions
+        past_actions_tokenized = []
+        for a in past_actions:
+            past_actions_tokenized.append(HABITAT_ACTION_SPACE_TOKENIZE[a])
+        actions_tokenized = []
+        for a in actions:
+            actions_tokenized.append(HABITAT_ACTION_SPACE_TOKENIZE[a])
+
+        data_dict = self.get_prompts(
+            instruction=f"The task is navigation. Your goal is to find {goal} by moving around in the scene. " +
+                        f"Past actions: {''.join(past_actions_tokenized)}.",
+            situation=random.choice(self.situation_pool),
+        )
+        data_dict.update({
+            'source': 'mp3d',
+            'scene_id': scene_id,
+            'obj_fts': obj_fts,
+            'obj_locs': obj_locs,
+            'anchor_locs': torch.from_numpy(anchor_loc).float(),
+            'anchor_orientation': torch.from_numpy(anchor_orientation).float(),
+            'img_fts': torch.from_numpy(img_fts).float(),
+            'img_masks': torch.LongTensor([1]).bool(),
+            'output_gt': ''.join(actions_tokenized),
+        })
+
+        return self.check_output_and_fill_dummy(data_dict)
+
+    @property
+    def action_space(self):
+        return HABITAT_ACTION_SPACE
+
+    @property
+    def heldout_scenes(self):
+        return [
+            '17DRP5sb8fy',
+            '5LpN3gDmAk7',
+            '82sE5b5pLXE',
+            'D7N2EKCX4Sj',
+            'HxpKQynjfin',
+        ]
+
+
+@DATASET_REGISTRY.register()
+class LeoCLIPort(LeoBase):
+    """
+    base_dir
+        - demos
+            - task_type
+                - {DEMOID}-{RUNSEED}.pkl
+                ...
+        - index_train.pkl
+        - index_val.pkl
+    """
+    situation_pool = Leo_situation_pool
+    def __init__(self, cfg, split):
+        super().__init__()
+        self.split = 'train' if split == 'train' else 'val'
+        self.base_dir = cfg.data.cliport.base_dir
+        self.max_obj_len = cfg.data.cliport.max_obj_len
+        self.num_points = cfg.data.cliport.num_points
+        self.history_length = cfg.data.cliport.history_length
+        self.img_size = cfg.data.cliport.img_size
+
+        logger.info(f"Loading LeoCLIPort {split}-set demos")
+        self.all_data_mapping, self.num_demos = self.load_demos(self.base_dir)
+        logger.info(f"Finish loading LeoCLIPort {split}-set demos, collected " +
+                    f"{len(self.all_data_mapping)} data from {self.num_demos} demos")
+
+    def load_demos(self, anno_dir):
+        index_file = os.path.join(anno_dir, f'index_{self.split}.pkl')
+        if os.path.exists(index_file):
+            with open(index_file, 'rb') as f:
+                all_data = pickle.load(f)
+        else:
+            # sweep and create index
+            all_data = {'mapping': [], 'num_demos': 0}
+            files = glob.glob(os.path.join(anno_dir, 'demos/*/*.pkl'))
+            for file in files:
+                if self.split == 'train':
+                    if any([i in file for i in self.heldout_scenes]):
+                        continue
+                else:
+                    if all([i not in file for i in self.heldout_scenes]):
+                        continue
+                with open(file, 'rb') as f:
+                    traj = pickle.load(f)
+                for ind, step in enumerate(traj):
+                    if step['act']:
+                        all_data['mapping'].append((file, ind, False))
+                    else:
+                        assert ind == len(traj) - 1
+                        all_data['mapping'].append((file, ind, True))
+                all_data['num_demos'] += 1
+            with open(index_file, 'wb') as f:
+                pickle.dump(all_data, f)
+
+        return all_data['mapping'], all_data['num_demos']
+
+    @property
+    def heldout_scenes(self):
+        return ['{:06d}'.format(i) for i in range(100)]
+
+    def __len__(self):
+        return len(self.all_data_mapping)
+
+    @staticmethod
+    def _segment_to_object(obs):
+        pc = obs['pointcloud']
+        cc = obs['colorcloud'][:, :3] / 127.5 - 1   # [0, 255] -> [-1, 1]
+        sc = obs['segmentcloud']
+        unique_labels = np.unique(sc)
+        pc = np.concatenate([pc, cc], axis=-1)
+        obj_fts = [pc[sc[:, 0] == label] for label in unique_labels]
+        return obj_fts
+
+    def __getitem__(self, index):
+        file, ind, done = self.all_data_mapping[index]
+        scene_id = os.path.sep.join(file.split(os.path.sep)[-2:])
+        with open(file, 'rb') as f:
+            traj = pickle.load(f)
+        step = traj[ind]
+
+        # obs
+        obs = step['obs']
+        obj_pcds = self._segment_to_object(obs)
+        if self.split == 'train':
+            random.shuffle(obj_pcds)
+        obj_pcds = obj_pcds[:self.max_obj_len]
+        # so far, the maximum number of objects in cliport is 52
+        obj_fts, obj_locs, anchor_loc = self.preprocess_pcd(obj_pcds, return_anchor=False, rot_aug=False)
+
+        img_fts = preprocess_2d(obs['colormap'], size=self.img_size)
+
+        # action
+        all_actions = [s['act'] for s in traj]
+
+        past_actions = _extract_between(all_actions, ind-self.history_length, ind-1, _DUMMY_CLIPORT_ACTION)
+        past_actions_tokenized = []
+        for a in past_actions:
+            for k in ['pose0', 'pose1']:
+                past_actions_tokenized.extend(CLIPORT_ACTION_SPACE_TOKENIZE(a[k]))
+
+        if done:
+            # the last-step goal is "done ...", we need to make it the same as other steps
+            goal = traj[-2]['info']['lang_goal']
+            action = _DUMMY_CLIPORT_ACTION
+        else:
+            goal = step['info']['lang_goal']
+            action = all_actions[ind]
+
+        action_tokenized = []
+        for k in ['pose0', 'pose1']:
+            action_tokenized.extend(CLIPORT_ACTION_SPACE_TOKENIZE(action[k]))
+
+        data_dict = self.get_prompts(
+            instruction=f"The task is manipulation. Your goal is to {goal}. " +
+                        f"Past actions: {''.join(past_actions_tokenized)}.",
+            situation=random.choice(self.situation_pool),
+        )
+        data_dict.update({
+            'source': 'cliport',
+            'scene_id': scene_id,
+            'obj_fts': obj_fts,
+            'obj_locs': obj_locs,
+            'anchor_locs': anchor_loc,
+            'img_fts': torch.from_numpy(img_fts).float(),
+            'img_masks': torch.LongTensor([1]).bool(),
+            'output_gt': ''.join(action_tokenized),
+        })
+
+        return self.check_output_and_fill_dummy(data_dict)
+
+
+@DATASET_REGISTRY.register()
+class LeoSceneCap3DLLM(LeoBase):
+    def __init__(self, cfg, split):
+        super().__init__()
+        self.scannet_base = cfg.data.scene_cap_3dllm.scannet_base
+        self.num_points = cfg.data.scene_cap_3dllm.num_points
+        self.max_obj_len = cfg.data.scene_cap_3dllm.max_obj_len
+        self.max_caption_length = int(cfg.llm.max_out_len / LLAMA_TOKEN_SENT_RATIO)
+
+        if split == 'train':
+            self.split = 'train'
+            self.pc_type = 'gt'
+        else:
+            self.split = 'val'
+            self.pc_type = getattr(cfg.data.scene_cap_3dllm, 'pc_type', 'gt')
+
+        logger.info(f"Loading LeoSceneCap3DLLM {split}-set language")
+        self.scan_ids, self.lang_data = self.load_anno(cfg.data.scene_cap_3dllm.anno_dir)
+        # scan_ids may be repeatitive
+        logger.info(f"Finish loading LeoSceneCap3DLLM {split}-set language, collected {len(self.scan_ids)} data")
+
+        self.scan_data = {}
+
+    def load_anno(self, anno_dir):
+        scan_ids = []
+        scan_caps = []
+        anno_file = os.path.join(anno_dir, f'3d_llm_scene_description_{self.split}.json')
+        with open(anno_file, 'r') as f:
+            json_data = json.load(f)
+        for item in json_data:
+            cap = item['answers'][0]
+            all_caps = self._split_sentence(
+                sentence='. '.join(cap.split('. ')[1:]),
+                max_length=self.max_caption_length,
+                prefix=cap.split('. ')[0] + '. ',
+            )
+            for c in all_caps:
+                scan_caps.append(c)
+                scan_ids.append(item['scene_id'])
+
+        return scan_ids, scan_caps
+
+    def __len__(self):
+        return len(self.scan_ids)
+
+    def __getitem__(self, index):
+        scan_id = self.scan_ids[index]
+        caption = self.lang_data[index]
+
+        # load pcds
+        if scan_id not in self.scan_data:
+            self.scan_data[scan_id] = self.load_scannet(scan_id)
+
+        if self.pc_type == 'gt':
+            obj_pcds = self.scan_data[scan_id]['obj_pcds'].copy()   # Dict{int: np.ndarray (N, 6)}
+            selected_obj_pcds = list(obj_pcds.values())
+        else:
+            # only for evaluation with object proposals
+            obj_pcds = self.scan_data[scan_id]['obj_pcds_pred'].copy()   # List[np.ndarray (N, 6)]
+            selected_obj_pcds = obj_pcds
+
+        if self.split == 'train':
+            random.shuffle(selected_obj_pcds)
+        selected_obj_pcds = selected_obj_pcds[:self.max_obj_len]
+
+        obj_fts, obj_locs, anchor_loc = self.preprocess_pcd(selected_obj_pcds, return_anchor=False)
+        data_dict = self.get_prompts(
+            instruction="Describe the room.",
+            situation="",
+        )
+        data_dict.update({
+            'source': 'scannet',
+            'scene_id': scan_id,
+            'obj_fts': obj_fts,
+            'obj_locs': obj_locs,
+            'anchor_locs': anchor_loc,
+            'img_fts': torch.zeros(3, 224, 224),
+            'img_masks': torch.LongTensor([0]).bool(),
+            'output_gt': caption,
+        })
+
+        return self.check_output_and_fill_dummy(data_dict)
+
+
+@DATASET_REGISTRY.register()
+class LeoQA3DLLM(LeoBase):
+    def __init__(self, cfg, split):
+        super().__init__()
+        self.scannet_base = cfg.data.qa_3dllm.scannet_base
+        self.num_points = cfg.data.qa_3dllm.num_points
+        self.max_obj_len = cfg.data.qa_3dllm.max_obj_len
+
+        if split == 'train':
+            self.split = 'train'
+            self.pc_type = 'gt'
+        else:
+            self.split = 'val'
+            self.pc_type = getattr(cfg.data.qa_3dllm, 'pc_type', 'gt')
+
+        logger.info(f"Loading LeoQA3DLLM {split}-set language")
+        self.scan_ids, self.lang_data = self.load_anno(cfg.data.qa_3dllm.anno_dir)
+        # scan_ids may be repeatitive
+        logger.info(f"Finish loading LeoQA3DLLM {split}-set language, collected {len(self.scan_ids)} data")
+
+        self.scan_data = {}
+
+    def load_anno(self, anno_dir):
+        scan_ids = []
+        lang_data = []
+        anno_file = os.path.join(anno_dir, f'3d_llm_embodied_question_answer_{self.split}.json')
+        with open(anno_file, 'r') as f:
+            json_data = json.load(f)
+        for item in json_data:
+            scan_ids.append(item['scene_id'])
+            lang_data.append({
+                'question': item['question'].lstrip('### human: ').rstrip(' ### assistant:'),
+                'answers': item['answers'],
+            })
+
+        return scan_ids, lang_data
+
+    def __len__(self):
+        return len(self.scan_ids)
+
+    def __getitem__(self, index):
+        scan_id = self.scan_ids[index]
+        qa_dict = self.lang_data[index]
+        question = qa_dict['question']
+        answer_list = qa_dict['answers']
+
+        # load pcds
+        if scan_id not in self.scan_data:
+            self.scan_data[scan_id] = self.load_scannet(scan_id)
+
+        if self.pc_type == 'gt':
+            obj_pcds = self.scan_data[scan_id]['obj_pcds'].copy()   # Dict{int: np.ndarray (N, 6)}
+            selected_obj_pcds = list(obj_pcds.values())
+        else:
+            # only for evaluation with object proposals
+            obj_pcds = self.scan_data[scan_id]['obj_pcds_pred'].copy()   # List[np.ndarray (N, 6)]
+            selected_obj_pcds = obj_pcds
+
+        if self.split == 'train':
+            random.shuffle(selected_obj_pcds)
+        selected_obj_pcds = selected_obj_pcds[:self.max_obj_len]
+
+        obj_fts, obj_locs, anchor_loc = self.preprocess_pcd(selected_obj_pcds, return_anchor=False)
+        data_dict = self.get_prompts(
+            instruction=question,
+            situation="",
+        )
+        data_dict.update({
+            'source': 'scannet',
+            'scene_id': scan_id,
+            'obj_fts': obj_fts,
+            'obj_locs': obj_locs,
+            'anchor_locs': anchor_loc,
+            'img_fts': torch.zeros(3, 224, 224),
+            'img_masks': torch.LongTensor([0]).bool(),
+            'output_gt': answer_list[0] if self.split == 'train' else answer_list,
+        })
+
+        return self.check_output_and_fill_dummy(data_dict)
+
+
+@DATASET_REGISTRY.register()
+class LeoPlan3DLLM(LeoBase):
+    def __init__(self, cfg, split):
+        super().__init__()
+        self.scannet_base = cfg.data.plan_3dllm.scannet_base
+        self.num_points = cfg.data.plan_3dllm.num_points
+        self.max_obj_len = cfg.data.plan_3dllm.max_obj_len
+
+        if split == 'train':
+            self.split = 'train'
+            self.pc_type = 'gt'
+        else:
+            self.split = 'val'
+            self.pc_type = getattr(cfg.data.plan_3dllm, 'pc_type', 'gt')
+
+        logger.info(f"Loading LeoPlan3DLLM {split}-set language")
+        self.scan_ids, self.lang_data = self.load_anno(cfg.data.plan_3dllm.anno_dir)
+        # scan_ids may be repeatitive
+        logger.info(f"Finish loading LeoPlan3DLLM {split}-set language, collected {len(self.scan_ids)} data")
+
+        self.scan_data = {}
+
+    def load_anno(self, anno_dir):
+        scan_ids = []
+        lang_data = []
+        anno_file = os.path.join(anno_dir, f'3d_llm_embodied_planning_filtered_{self.split}.json')
+        with open(anno_file, 'r') as f:
+            json_data = json.load(f)
+        for item in json_data:
+            scan_ids.append(item['scene_id'])
+            lang_data.append({
+                'goal': item['question'].lstrip('### human: '),
+                'plan': item['answers'][0],
+            })
+
+        return scan_ids, lang_data
+
+    def __len__(self):
+        return len(self.scan_ids)
+
+    def __getitem__(self, index):
+        scan_id = self.scan_ids[index]
+        goal_plan_pair = self.lang_data[index]
+        goal = goal_plan_pair['goal']
+        plan = goal_plan_pair['plan']
+
+        # load pcds
+        if scan_id not in self.scan_data:
+            self.scan_data[scan_id] = self.load_scannet(scan_id)
+
+        if self.pc_type == 'gt':
+            obj_pcds = self.scan_data[scan_id]['obj_pcds'].copy()   # Dict{int: np.ndarray (N, 6)}
+            selected_obj_pcds = list(obj_pcds.values())
+        else:
+            # only for evaluation with object proposals
+            obj_pcds = self.scan_data[scan_id]['obj_pcds_pred'].copy()   # List[np.ndarray (N, 6)]
+            selected_obj_pcds = obj_pcds
+
+        if self.split == 'train':
+            random.shuffle(selected_obj_pcds)
+        selected_obj_pcds = selected_obj_pcds[:self.max_obj_len]
+
+        obj_fts, obj_locs, anchor_loc = self.preprocess_pcd(selected_obj_pcds, return_anchor=False)
+
+        data_dict = self.get_prompts(
+            instruction=goal,
+            situation="",
+        )
+        data_dict.update({
+            'source': 'scannet',
+            'scene_id': scan_id,
+            'obj_fts': obj_fts,
+            'obj_locs': obj_locs,
+            'anchor_locs': anchor_loc,
+            'img_fts': torch.zeros(3, 224, 224),
+            'img_masks': torch.LongTensor([0]).bool(),
+            'output_gt': plan,
+        })
+
+        return self.check_output_and_fill_dummy(data_dict)
+
+
+@DATASET_REGISTRY.register()
+class LeoDialog3DLLM(LeoBase):
+    def __init__(self, cfg, split):
+        super().__init__()
+        self.scannet_base = cfg.data.dialog_3dllm.scannet_base
+        self.num_points = cfg.data.dialog_3dllm.num_points
+        self.max_obj_len = cfg.data.dialog_3dllm.max_obj_len
+
+        if split == 'train':
+            self.split = 'train'
+            self.pc_type = 'gt'
+        else:
+            self.split = 'val'
+            self.pc_type = getattr(cfg.data.dialog_3dllm, 'pc_type', 'gt')
+
+        logger.info(f"Loading LeoDialog3DLLM {split}-set language")
+        self.scan_ids, self.lang_data = self.load_anno(cfg.data.dialog_3dllm.anno_dir)
+        # scan_ids may be repeatitive
+        logger.info(f"Finish loading LeoDialog3DLLM {split}-set language, collected {len(self.scan_ids)} data")
+
+        self.scan_data = {}
+
+    def load_anno(self, anno_dir):
+        scan_ids = []
+        lang_data = []
+        anno_file = os.path.join(anno_dir, f'3d_llm_embodied_dialogue_filtered_{self.split}.json')
+        with open(anno_file, 'r') as f:
+            json_data = json.load(f)
+        for item in json_data:
+            scan_ids.append(item['scene_id'])
+            history = item['question']
+            history = history.replace('### human:', '</s>USER:')
+            history = history.replace('### assistant:', 'ASSISTANT:')
+            history = history.lstrip('</s>')
+            lang_data.append({
+                'history': history,
+                'response': item['answers'][0],
+            })
+
+        return scan_ids, lang_data
+
+    def __len__(self):
+        return len(self.scan_ids)
+
+    def __getitem__(self, index):
+        scan_id = self.scan_ids[index]
+        dialog_pair = self.lang_data[index]
+        history = dialog_pair['history']
+        response = dialog_pair['response']
+
+        # load pcds
+        if scan_id not in self.scan_data:
+            self.scan_data[scan_id] = self.load_scannet(scan_id)
+
+        if self.pc_type == 'gt':
+            obj_pcds = self.scan_data[scan_id]['obj_pcds'].copy()   # Dict{int: np.ndarray (N, 6)}
+            selected_obj_pcds = list(obj_pcds.values())
+        else:
+            # only for evaluation with object proposals
+            obj_pcds = self.scan_data[scan_id]['obj_pcds_pred'].copy()   # List[np.ndarray (N, 6)]
+            selected_obj_pcds = obj_pcds
+
+        if self.split == 'train':
+            random.shuffle(selected_obj_pcds)
+        selected_obj_pcds = selected_obj_pcds[:self.max_obj_len]
+
+        obj_fts, obj_locs, anchor_loc = self.preprocess_pcd(selected_obj_pcds, return_anchor=False)
+
+        data_dict = self.get_prompts(
+            instruction=None,
+            dialogue=history,
+            situation="",
+        )
+        data_dict.update({
+            'source': 'scannet',
+            'scene_id': scan_id,
+            'obj_fts': obj_fts,
+            'obj_locs': obj_locs,
+            'anchor_locs': anchor_loc,
+            'img_fts': torch.zeros(3, 224, 224),
+            'img_masks': torch.LongTensor([0]).bool(),
+            'output_gt': response,
+        })
+
+        return self.check_output_and_fill_dummy(data_dict)
+
+
+@DATASET_REGISTRY.register()
 class LeoMix(Dataset):
     mapping = {
         'cap3d': LeoCap3D,
         'obj_scene_cap': LeoObjSceneCap,
         'scene_cap': LeoSceneCap,
         'scan2cap': LeoScan2Cap,
+        'nr3d': LeoNr3D,
         'scanqa': LeoScanQA,
         'sqa3d': LeoSQA3D,
         'rscan_qa': Leo3RScanQA,
         'rscan_plan': Leo3RScanPlan,
         'rscan_dialog': Leo3RScanDialog,
+        'mp3d_objnav': LeoMP3DObjNav,
+        'cliport': LeoCLIPort,
+        'scene_cap_3dllm': LeoSceneCap3DLLM,
+        'qa_3dllm': LeoQA3DLLM,
+        'plan_3dllm': LeoPlan3DLLM,
+        'dialog_3dllm': LeoDialog3DLLM,
     }
 
     def __init__(self, cfg, split):

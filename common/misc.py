@@ -11,6 +11,7 @@ from accelerate.state import PartialState
 from accelerate.utils import DistributedType, recursively_apply
 from accelerate.utils.constants import TORCH_DISTRIBUTED_OPERATION_TYPES
 from torch._six import string_classes
+from torch.utils.data import random_split
 try:
     from torch.optim.lr_scheduler import LRScheduler
 except ImportError:
@@ -80,6 +81,14 @@ def default_collate(batch):
         return batch
 
     raise TypeError(default_collate_err_msg_format.format(elem_type))
+
+
+def split_train_set(train_set, epochs):
+    train_subset_base = len(train_set) // epochs
+    train_subset_res = len(train_set) % epochs
+    return random_split(
+        train_set, [train_subset_base+1] * (train_subset_res) + [train_subset_base] * (epochs-train_subset_res)
+    )
 
 
 # Customize operations for gathering

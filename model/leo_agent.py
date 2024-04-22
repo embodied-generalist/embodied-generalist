@@ -160,7 +160,7 @@ class LeoAgent(nn.Module):
                 clip_fts = self.clip_model.encode_text(
                     clip.tokenize(data_dict['prompt_after_obj'], truncate=True).to(device)
                 )
-            clip_fts = self.clip_proj(clip_fts)
+            clip_fts = self.clip_proj(clip_fts.to(obj_tokens.dtype))
             # B, N, C
             img_tokens = torch.einsum('bnc,bc->bnc', img_tokens, clip_fts)
             obj_tokens = torch.einsum('bnc,bc->bnc', obj_tokens, clip_fts)

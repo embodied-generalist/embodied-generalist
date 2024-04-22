@@ -6,6 +6,7 @@ instruction_base: TBD
 
 max_obj_len: ${dataset_wrapper_args.max_obj_len}
 num_points: 1024
+img_size: [224, 224]
 
 cap3d:
   cap3d_root: ${data.alignment_base}/obj_caption
@@ -64,3 +65,20 @@ rscan_dialog:
   anno_dir: ${data.instruction_base}/dialogue
   max_obj_len: ${data.max_obj_len}
   num_points: ${data.num_points}
+
+mp3d_objnav:
+  base_dir: ${data.instruction_base}/mp3d_objnav
+  max_obj_len: ${data.max_obj_len}
+  num_points: ${data.num_points}
+  max_traj_len: 500
+  history_length: 4
+  num_pred: 1
+  img_size: ${data.img_size}
+  scene_object_deterministic: True   # if so, the same objects will be sampled for a scene
+
+cliport:
+  base_dir: ${data.instruction_base}/cliport
+  max_obj_len: ${data.max_obj_len}
+  num_points: ${data.num_points}
+  history_length: 4
+  img_size: ${data.img_size}

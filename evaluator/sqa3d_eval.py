@@ -1,4 +1,4 @@
-import torch
+import json
 
 from data.data_utils import clean_answer
 from evaluator.build import EVALUATOR_REGISTRY
@@ -74,8 +74,8 @@ class SQA3DEvaluator(ScanQAEvaluator):
                 # vision
                 'source': data_dict['source'][i],
                 'scene_id': data_dict['scene_id'][i],
-                'anchor': data_dict['anchor_locs'][i],
-                'anchor_ort': data_dict['anchor_orientation'][i],
+                'anchor': data_dict['anchor_locs'][i].tolist(),
+                'anchor_ort': data_dict['anchor_orientation'][i].tolist(),
                 # language
                 'situation': data_dict['situation'][i],
                 'instruction': data_dict['prompt_after_obj'][i],
@@ -118,6 +118,7 @@ class SQA3DEvaluator(ScanQAEvaluator):
             is_best = False
 
         if (is_best or split == 'test') and is_main_process:
-            torch.save(self.save_results, str(self.save_dir / 'results.pt'))
+            with open(str(self.save_dir / 'results.json'), 'w') as f:
+                json.dump(self.save_results, f, indent=2)
 
         return is_best, self.eval_dict

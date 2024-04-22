@@ -1,7 +1,7 @@
+import json
 from pathlib import Path
 
 import numpy as np
-import torch
 
 from data.data_utils import clean_answer
 from evaluator.build import EVALUATOR_REGISTRY
@@ -112,6 +112,7 @@ class ScanQAEvaluator():
             is_best = False
 
         if (is_best or split == 'test') and is_main_process:
-            torch.save(self.save_results, str(self.save_dir / 'results.pt'))
+            with open(str(self.save_dir / 'results.json', 'w')) as f:
+                json.dump(self.save_results, f, indent=2)
 
         return is_best, self.eval_dict
