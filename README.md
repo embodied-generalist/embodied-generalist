@@ -2,6 +2,10 @@
   <span><img src="assets/leo.svg" width="4%" style="transform: translate(0,9px)"></span><b>An Embodied Generalist Agent in 3D World</b>
 </h2>
 
+<h3 align="center">
+ICML 2024
+</h3>
+
 <div align="center" margin-bottom="6em">
 <a target="_blank" href="https://huangjy-pku.github.io/">Jiangyong Huang<sup>✶</sup></a>,
 <a target="_blank" href="https://silongyong.github.io/">Silong Yong<sup>✶</sup></a>,
@@ -54,6 +58,8 @@ We meticulously collect extensive diverse data for training **LEO**. <sup>&dagge
 
 
 ## News
+**[2024.05]** **LEO** is accepted by ICML 2024.
+
 **[2024.04]** We release the scripts for inference and scaling law analysis, [model weights](https://drive.google.com/drive/folders/1dko2dzdwRWSK3hi1liBpGHZ8Dz97jXdP?usp=sharing), and training code of EAI tasks.
 
 **[2024.03]** We release the code and [data](https://drive.google.com/drive/folders/1dko2dzdwRWSK3hi1liBpGHZ8Dz97jXdP?usp=sharing). The embodied AI (EAI) tasks (navigation and manipulation) need further organization and will be released soon.
@@ -250,10 +256,10 @@ We manually modify some methods of `accelerate.Accelerator` in `common/misc.py`,
 
 ## BibTex
 ```bibtex
-@article{huang2023embodied,
+@inproceedings{huang2023embodied,
   title={An Embodied Generalist Agent in 3D World},
   author={Huang, Jiangyong and Yong, Silong and Ma, Xiaojian and Linghu, Xiongkun and Li, Puhao and Wang, Yan and Li, Qing and Zhu, Song-Chun and Jia, Baoxiong and Huang, Siyuan},
-  journal={arXiv preprint arXiv:2311.12871},
-  year={2023}
+  booktitle={Proceedings of the International Conference on Machine Learning (ICML)},
+  year={2024}
 }
 ```
