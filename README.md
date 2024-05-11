@@ -154,8 +154,8 @@ python -c 'from model.pointnetpp.pointnetpp import PointNetPP'
     ├── obj_scene_caption
     │   ├── 3rscan_prompted.json
     │   ├── 3rscan_scanscribe.json
-    │   ├── scannet_referit3d_nr3d.jsonl
-    │   └── scannet_referit3d_sr3d+.jsonl
+    │   ├── scannet_referit3d_nr3d_train.json
+    │   └── scannet_referit3d_sr3d+_train.json
     └── scene_caption
         ├── 3rscan_scenecap_train.json
         └── 3rscan_scenecap_val.json

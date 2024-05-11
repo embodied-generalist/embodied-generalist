@@ -293,9 +293,9 @@ class LeoObjSceneCap(LeoBase):
         scan_ids = []
         scan_caps = []
         for fname in os.listdir(anno_dir):
+            with open(os.path.join(anno_dir, fname)) as f:
+                json_data = json.load(f)
             if '3rscan' in fname.lower():
-                with open(os.path.join(anno_dir, fname)) as f:
-                    json_data = json.load(f)
                 if 'scanscribe' in fname.lower():
                     for meta_anno in json_data:
                         cap = meta_anno['sentence']
@@ -336,23 +336,23 @@ class LeoObjSceneCap(LeoBase):
                                     })
             elif 'scannet' in fname.lower():
                 # referit3d
-                with jsonlines.open(os.path.join(anno_dir, fname), 'r') as f:
-                    for item in f:
-                        cap = item['utterance']
-                        all_caps = self._split_sentence(
-                            sentence='. '.join(cap.split('. ')[1:]),
-                            max_length=self.max_caption_length,
-                            prefix=cap.split('. ')[0] + '. ',
-                        )
-                        for c in all_caps:
-                            scan_ids.append({
-                                'source': 'scannet',
-                                'scan_id': item['scan_id'],
-                            })
-                            scan_caps.append({
-                                'obj_id': item['target_id'],
-                                'caption': c,
-                            })
+                for item in json_data:
+                    obj_id = int(item['target_id'])
+                    cap = item['utterance']
+                    all_caps = self._split_sentence(
+                        sentence='. '.join(cap.split('. ')[1:]),
+                        max_length=self.max_caption_length,
+                        prefix=cap.split('. ')[0] + '. ',
+                    )
+                    for c in all_caps:
+                        scan_ids.append({
+                            'source': 'scannet',
+                            'scan_id': item['scan_id'],
+                        })
+                        scan_caps.append({
+                            'obj_id': item['target_id'],
+                            'caption': c,
+                        })
 
         return scan_ids, scan_caps
 
