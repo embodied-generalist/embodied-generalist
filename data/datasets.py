@@ -4,7 +4,6 @@ import os
 import random
 
 import cv2
-import jsonlines
 import nltk
 import numpy as np
 import pandas as pd
@@ -13,6 +12,7 @@ import torch
 from accelerate.logging import get_logger
 from einops import rearrange
 from scipy import sparse
+from scipy.spatial.transform import Rotation as R
 from torch.utils.data import Dataset
 
 from .build import DATASET_REGISTRY
@@ -119,6 +119,7 @@ class LeoBase(Dataset):
             obj_pcds.update({i: pcds[mask]})
 
         scan['obj_pcds'] = obj_pcds
+        scan['scene_center'] = (points.max(0) + points.min(0)) / 2
 
         if hasattr(self, 'pc_type') and self.pc_type == 'pred':
             # Mask3D proposals
@@ -132,7 +133,7 @@ class LeoBase(Dataset):
 
         return scan
 
-    def preprocess_pcd(self, obj_pcds, return_anchor=False, rot_aug=True):
+    def preprocess_pcd(self, obj_pcds, return_anchor=False, situation=None, rot_aug=True):
         # rotate scene
         rot_matrix = build_rotate_mat(self.split, rot_aug=rot_aug)
 
@@ -166,7 +167,21 @@ class LeoBase(Dataset):
         # convert to torch
         obj_fts = torch.from_numpy(np.stack(obj_fts, 0)).float()
         obj_locs = torch.from_numpy(np.array(obj_locs)).float()
-        if return_anchor:
+        if situation is not None:
+            # include location and orientation
+            pos, ori = situation
+            if rot_matrix is None:
+                pos_new = pos
+                ori_new = ori
+            else:
+                pos_new = pos.reshape(1, 3) @ rot_matrix.transpose()
+                pos_new = pos_new.reshape(-1)
+                ori_new = R.from_quat(ori).as_matrix()
+                ori_new = rot_matrix @ ori_new
+                ori_new = R.from_matrix(ori_new).as_quat()
+                ori_new = ori_new.reshape(-1)
+            anchor_loc = (pos_new, ori_new)
+        elif return_anchor:
             anchor_loc = torch.from_numpy(anchor_loc).float()
         else:
             anchor_loc = torch.zeros(3)
@@ -829,7 +844,7 @@ class LeoSQA3D(LeoBase):
             self.pc_type = getattr(cfg.data.sqa3d, 'pc_type', 'gt')
         
         logger.info(f"Loading LeoSQA3D {split}-set language")
-        self.scan_ids, self.lang_data = self.load_anno(cfg.data.sqa3d.anno_dir)
+        self.scan_ids, self.lang_data, self.align_matrices = self.load_anno(cfg.data.sqa3d.anno_dir)
         # scan_ids may be repeatitive
         logger.info(f"Finish loading LeoSQA3D {split}-set language, collected {len(self.scan_ids)} data")
 
@@ -862,7 +877,9 @@ class LeoSQA3D(LeoBase):
                 'rot': np.array(list(item['rotation'].values())),   # array (4,)
             })
 
-        return scan_ids, sqa_annos
+        align_matrices = torch.load(os.path.join(anno_dir, 'axisAlignment.pth'))
+
+        return scan_ids, sqa_annos, align_matrices
 
     def __len__(self):
         return len(self.scan_ids)
@@ -876,6 +893,30 @@ class LeoSQA3D(LeoBase):
             return word
         result = ' '.join([translate(word) for word in nltk.wordpunct_tokenize(sentence)])
         return result.capitalize()
+
+    def align_situation(self, pos, ori, scene_center, align_matrix):
+        """
+        We need to transform the location and orientation to align with pcd
+        pos: [x, y, z]; ori: [_x, _y, _z, _w]
+        """
+        if isinstance(pos, dict):
+            pos = [pos['x'], pos['y'], pos['z']]
+        pos = np.array(pos)
+
+        if isinstance(ori, dict):
+            ori = [ori['_x'], ori['_y'], ori['_z'], ori['_w']]
+        ori = np.array(ori)
+
+        pos_new = pos.reshape(1, 3) @ align_matrix.T
+        pos_new += scene_center
+        pos_new = pos_new.reshape(-1)
+
+        ori = R.from_quat(ori).as_matrix()
+        ori_new = align_matrix @ ori
+        ori_new = -ori_new   # SQA3D annotation corresponds to the opposite orientation
+        ori_new = R.from_matrix(ori_new).as_quat()
+        ori_new = ori_new.reshape(-1)
+        return pos_new, ori_new
 
     def __getitem__(self, index):
         scan_id = self.scan_ids[index]
@@ -901,7 +942,14 @@ class LeoSQA3D(LeoBase):
             random.shuffle(obj_pcds)
         selected_obj_pcds = obj_pcds[:self.max_obj_len]
 
-        obj_fts, obj_locs, _ = self.preprocess_pcd(selected_obj_pcds, return_anchor=False)
+        # align situation with pcd
+        pos_aligned, rot_aligned = self.align_situation(
+            pos, rot, self.scan_data[scan_id]['scene_center'], self.align_matrices[scan_id]
+        )
+
+        obj_fts, obj_locs, (pos_aligned, rot_aligned) = self.preprocess_pcd(
+            selected_obj_pcds, return_anchor=False, situation=(pos_aligned, rot_aligned)
+        )
 
         if self.split == 'train':
             # augmentation for train
@@ -922,8 +970,8 @@ class LeoSQA3D(LeoBase):
             'obj_fts': obj_fts,
             'obj_locs': obj_locs,
             'situation': situation,
-            'anchor_locs': torch.from_numpy(pos).float(),
-            'anchor_orientation': torch.from_numpy(rot).float(),
+            'anchor_locs': torch.from_numpy(pos_aligned).float(),
+            'anchor_orientation': torch.from_numpy(rot_aligned).float(),
             'img_fts': torch.zeros(3, 224, 224),
             'img_masks': torch.LongTensor([0]).bool(),
             'output_gt': random.choice(answer_list) if self.split == 'train' else answer_list,

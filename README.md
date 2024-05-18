@@ -174,7 +174,8 @@ python -c 'from model.pointnetpp.pointnetpp import PointNetPP'
     │   ├── v1_balanced_questions_test_scannetv2.json
     │   ├── v1_balanced_sqa_annotations_train_scannetv2.json
     │   ├── v1_balanced_sqa_annotations_val_scannetv2.json
-    │   └── v1_balanced_sqa_annotations_test_scannetv2.json
+    │   ├── v1_balanced_sqa_annotations_test_scannetv2.json
+    │   └── axisAlignment.pth
     ├── 3rscanqa
     │   ├── 3rscan_qa_train.json
     │   └── 3rscan_qa_val.json
