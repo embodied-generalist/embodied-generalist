@@ -60,9 +60,9 @@ We meticulously collect extensive diverse data for training **LEO**. <sup>&dagge
 ## News
 **[2024.05]** **LEO** is accepted by ICML 2024.
 
-**[2024.04]** We release the scripts for inference and scaling law analysis, [model weights](https://drive.google.com/drive/folders/1dko2dzdwRWSK3hi1liBpGHZ8Dz97jXdP?usp=sharing), and training code of EAI tasks.
+**[2024.04]** We release the scripts for inference and scaling law analysis, [model weights](https://huggingface.co/datasets/huangjy-pku/LEO_data/tree/main), and training code of EAI tasks.
 
-**[2024.03]** We release the code and [data](https://drive.google.com/drive/folders/1dko2dzdwRWSK3hi1liBpGHZ8Dz97jXdP?usp=sharing). The embodied AI (EAI) tasks (navigation and manipulation) need further organization and will be released soon.
+**[2024.03]** We release the code and [data](https://huggingface.co/datasets/huangjy-pku/LEO_data/tree/main). The embodied AI (EAI) tasks (navigation and manipulation) need further organization and will be released soon.
 
 **[2024.01]** We release a [Huggingface interactive demo](https://huggingface.co/spaces/embodied-generalist/LEO-Demo). Chat with **LEO** and enjoy yourself.
 
@@ -89,7 +89,7 @@ pip install -r requirements.txt
 pip install peft==0.5.0 --no-deps
 ```
 
-3. Install third party libraries (for point cloud backbones). Installation failure may occur for `PointNext`, resulting in error when importing `PointNext`. If this happens, there are two solutions: 1) comment the line of importing `PointNext`, or 2) download the [compiled file](https://drive.google.com/file/d/1MkOiy3UKitVFMccePxk3nl-XCJeaxBvR/view?usp=sharing) and place it at `model/pointnext/cpp/pointnet2_batch/`.
+3. Install third party libraries (for point cloud backbones). Installation failure may occur for `PointNext`, resulting in error when importing `PointNext`. If this happens, there are two solutions: 1) comment out the line of importing `PointNext`, or 2) download the [compiled file](https://huggingface.co/datasets/huangjy-pku/LEO_data/blob/main/pointnet2_batch_cuda.cpython-39-x86_64-linux-gnu.so) and place it at `model/pointnext/cpp/pointnet2_batch/`.
 
 ```shell
 cd model
@@ -113,10 +113,10 @@ python -c 'from model.pointnetpp.pointnetpp import PointNetPP'
 4. Go through [task and data](#task-and-data), [model weights](#model-weights), and you are ready to [run](#running).
 
 ## Task and Data
-**Data preparation.** The [data](https://drive.google.com/drive/folders/1dko2dzdwRWSK3hi1liBpGHZ8Dz97jXdP?usp=sharing) includes two components: scan data and language annotations.
+**Data preparation.** The [data](https://huggingface.co/datasets/huangjy-pku/LEO_data/tree/main) includes two components: scan data and language annotations.
 - **Scan data.** To simplify the preparation and save storage, we streamline the scan data (point clouds and instance segments), which is less than 10G yet already sufficient for experiments on **LEO**. You can download the compressed files from the links below and arrange the data according to the illustration of scan data structure.
-  - **ScanNet**: [pcd_with_global_alignment](https://drive.google.com/file/d/1YlChqK4-UkUNprT2tIJY0mwCloL_kRat/view?usp=sharing), [mask (Mask3D proposals)](https://drive.google.com/file/d/1AACMAjlFFGZsKJYAh8hFikFGKtYC6epk/view?usp=sharing).
-  - **3RScan**: [3RScan-ours-align](https://drive.google.com/file/d/11xltRZ2BVzJWN4uqOAQgbLspWjacQyAJ/view?usp=sharing).
+  - **ScanNet**: [pcd_with_global_alignment](https://huggingface.co/datasets/huangjy-pku/LEO_data/blob/main/pcd_with_global_alignment.zip), [mask (Mask3D proposals)](https://huggingface.co/datasets/huangjy-pku/LEO_data/blob/main/mask.zip).
+  - **3RScan**: [3RScan-ours-align](https://huggingface.co/datasets/huangjy-pku/LEO_data/blob/main/3RScan-ours-align.zip).
   - **Cap3D**. Please refer to [Cap3D data](https://huggingface.co/datasets/tiange/Cap3D) for preparing the point clouds, where we use [pcs_pt](https://huggingface.co/datasets/tiange/Cap3D/tree/main/PointCloud_pt_zips). The corresponding annotation file (`Cap3D_automated_Objaverse_no3Dword.csv`) is included in our released annotations.
 ```
 # scan data structure
@@ -141,7 +141,7 @@ python -c 'from model.pointnetpp.pointnetpp import PointNetPP'
     └── Cap3D_automated_Objaverse_no3Dword.csv   # included in annotations
 ```
 
-- **Language annotations.** The annotations are categorized into two parts according to the training stage. We provide a [compressed file](https://drive.google.com/file/d/1ggFHOvxmGrBARqcMPcRSVmCXbsSZle2F/view?usp=sharing) that wraps up all the annotations, which should be organized in the following structure:
+- **Language annotations.** The annotations are categorized into two parts according to the training stage. We provide a [compressed file](https://huggingface.co/datasets/huangjy-pku/LEO_data/blob/main/annotations.zip) that wraps up all the annotations, which should be organized in the following structure:
 
 ```
 # annotations structure
@@ -196,12 +196,11 @@ and `instruction_base`.
 ## Model Weights
 **Pretrained weights to load.**
 - **LLM**: [Vicuna-7B](https://huggingface.co/huangjy-pku/vicuna-7b/tree/main). We use Vicuna v1.1 from [FastChat](https://github.com/lm-sys/FastChat), which you can refer to for the access of Vicuna-13B or more advanced versions. Remember to update `cfg_path` in `configs/llm/*.yaml`.
-- **Point cloud backbone**: [PointNet++](https://drive.google.com/file/d/1vq2ro_OwoTsa6JuIQVqfNFSbyWRuUGcG/view?usp=sharing), [PointBERT](https://drive.google.com/file/d/1RqjuUs6SI-0olklHGtCTT9h5jyV0gBxM/view?usp=sharing). We have not tried `PointNext`, but everything is ready except the pretrained weights. Remember to update `path` in `configs/vision3d/backbone/*.yaml`.
+- **Point cloud backbone**: [PointNet++](https://huggingface.co/datasets/huangjy-pku/LEO_data/blob/main/pointnetpp_vil3dref.pth), [PointBERT](https://huggingface.co/datasets/huangjy-pku/LEO_data/blob/main/pointbert_pointllm.pth). We have not tried `PointNext`, but everything is ready except the pretrained weights. Remember to update `path` in `configs/vision3d/backbone/*.yaml`.
 
-**Trained LEO weights.** We release three checkpoints [here](https://drive.google.com/drive/folders/1dko2dzdwRWSK3hi1liBpGHZ8Dz97jXdP?usp=sharing):
-- `align_frozenllm.pth`: the checkpoint after the alignment stage, aligned with LLM frozen.
-- `align_lora.pth`: the checkpoint after the alignment stage, aligned with LoRA.
-- `tuning_noact.pth`: the checkpoint after the instruction tuning stage, based on `align_lora.pth` and tuned without embodied acting tasks.
+**Trained LEO weights.** We release two checkpoints [here](https://huggingface.co/datasets/huangjy-pku/LEO_data/tree/main):
+- `align.pth`: the checkpoint after the alignment stage, trained with LoRA.
+- `sft_noact.pth`: the checkpoint after the instruction tuning stage, based on `align.pth` and tuned without embodied acting tasks.
 
 
 ## Running
