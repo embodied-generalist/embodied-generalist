@@ -58,6 +58,8 @@ We meticulously collect extensive diverse data for training **LEO**. <sup>&dagge
 
 
 ## News
+**[2024.07]** We release a few [EAI data examples](https://huggingface.co/datasets/huangjy-pku/LEO_data/blob/main/eai_data_example.zip) for demonstration purpose.
+
 **[2024.05]** **LEO** is accepted by ICML 2024.
 
 **[2024.04]** We release the scripts for inference and scaling law analysis, [model weights](https://huggingface.co/datasets/huangjy-pku/LEO_data/tree/main), and training code of EAI tasks.
@@ -191,6 +193,8 @@ python -c 'from model.pointnetpp.pointnetpp import PointNetPP'
 and `instruction_base`.
 
 **Dataloaders.** The implementation of dataset per task lies in `data/datasets.py`, where `LeoMix` aggregates various datasets as the training dataset.
+
+**EAI.** We release a small subset of EAI tasks with a few data examples for demonstration purpose. You can download [here](https://huggingface.co/datasets/huangjy-pku/LEO_data/blob/main/eai_data_example.zip). It is recommended to put the extracted folders (`mp3d_objnav` and `cliport`) right inside the `instruction_base` path. Though the test in simulator is not incorporated yet, it is ready for the training and validation of EAI tasks.
 
 
 ## Model Weights
