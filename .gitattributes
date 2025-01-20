@@ -1,0 +1,2 @@
+evaluator/ngram_metrics/meteor/data/paraphrase-en.gz !text !filter !merge !diff
+evaluator/ngram_metrics/meteor/meteor-1.5.jar !text !filter !merge !diff
