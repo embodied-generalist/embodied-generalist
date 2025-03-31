@@ -29,9 +29,9 @@ ICML 2024
     <img src="https://img.shields.io/badge/Page-LEO-9cf" alt="Project Page"></a>
     <a href="https://youtu.be/mlnjz4eSjB4?si=NN9z7TpkTPgBAzBw" target="_blank">
     <img src="https://img.shields.io/badge/Video-YouTube-9966ff" alt="Video"></a>
-    <a href="https://drive.google.com/drive/folders/1dko2dzdwRWSK3hi1liBpGHZ8Dz97jXdP?usp=sharing" target="_blank">
+    <a href="https://huggingface.co/datasets/huangjy-pku/LEO_data/tree/main" target="_blank">
     <img src="https://img.shields.io/badge/Data-LEO-blue" alt="Data"></a>
-    <a href="https://drive.google.com/drive/folders/1dko2dzdwRWSK3hi1liBpGHZ8Dz97jXdP?usp=sharing" target="_blank">
+    <a href="https://huggingface.co/datasets/huangjy-pku/LEO_data/tree/main" target="_blank">
     <img src="https://img.shields.io/badge/Model-LEO-darkorange" alt="Model"></a>
 </div>
 &nbsp;
@@ -260,7 +260,7 @@ We manually modify some methods of `accelerate.Accelerator` in `common/misc.py`,
 
 ## BibTex
 ```bibtex
-@inproceedings{huang2023embodied,
+@inproceedings{huang2024embodied,
   title={An Embodied Generalist Agent in 3D World},
   author={Huang, Jiangyong and Yong, Silong and Ma, Xiaojian and Linghu, Xiongkun and Li, Puhao and Wang, Yan and Li, Qing and Zhu, Song-Chun and Jia, Baoxiong and Huang, Siyuan},
   booktitle={Proceedings of the International Conference on Machine Learning (ICML)},
